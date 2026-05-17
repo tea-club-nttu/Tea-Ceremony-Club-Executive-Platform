@@ -167,6 +167,10 @@ with col2:
     activity_date = st.text_input("活動日期", key="activity_date_input")
     school_people = st.number_input("本校學生人數", min_value=0, step=1)
     outside_people = st.number_input("校外人士人數", min_value=0, step=1)
+    
+
+with col3:
+    phone = st.text_input("連絡電話")
     if officers:
         if "activity_leader_index" not in st.session_state:
             st.session_state["activity_leader_index"] = 0
@@ -185,9 +189,6 @@ with col2:
             st.text_input("活動負責人", value=event_leader, disabled=True)
         else:
             st.selectbox("活動負責人", ["請先到幹部管理新增幹部"], disabled=True)
-
-with col3:
-    phone = st.text_input("連絡電話")
 
 st.subheader("問卷資料")
 questionnaire_file = st.file_uploader(
