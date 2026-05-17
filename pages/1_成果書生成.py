@@ -5,6 +5,7 @@ from utils.achievement_report import (
     build_report,
 )
 from utils.auth import require_login, logout_button
+from utils.calendar_store import format_event_label, load_events
 from utils.officer_store import format_officer_label, load_officers
 from utils.report_filename import achievement_report_file_name
 from utils.teacher_comment import (
@@ -116,15 +117,49 @@ with st.expander("範本設定", expanded=False):
 
 st.subheader("基本資料")
 officers = load_officers()
+calendar_events = load_events()
+selected_calendar_event = None
+
+if calendar_events:
+    calendar_options = list(range(len(calendar_events) + 1))
+    selected_calendar_event_index = st.selectbox(
+        "從行事曆帶入活動資料",
+        calendar_options,
+        format_func=lambda index: (
+            "不帶入行事曆資料"
+            if index == 0
+            else format_event_label(calendar_events[index - 1])
+        ),
+        key="selected_calendar_event_index",
+    )
+    if selected_calendar_event_index > 0:
+        selected_calendar_event = calendar_events[selected_calendar_event_index - 1]
+else:
+    selected_calendar_event_index = 0
+    st.selectbox("從行事曆帶入活動資料", ["尚無行事曆活動"], disabled=True)
+
+event_name = selected_calendar_event.get("活動名稱", "") if selected_calendar_event else ""
+event_date = selected_calendar_event.get("日期", "") if selected_calendar_event else ""
+event_time = selected_calendar_event.get("時間", "") if selected_calendar_event else ""
+event_place = selected_calendar_event.get("地點", "") if selected_calendar_event else ""
+event_date_text = " ".join(item for item in (event_date, event_time) if item)
+
+if st.session_state.get("last_calendar_event_index") != selected_calendar_event_index:
+    if selected_calendar_event is not None:
+        st.session_state["activity_name_input"] = event_name
+        st.session_state["activity_place_input"] = event_place
+        st.session_state["activity_date_input"] = event_date_text
+    st.session_state["last_calendar_event_index"] = selected_calendar_event_index
+
 col1, col2, col3 = st.columns(3)
 
 with col1:
     fill_date = st.date_input("填寫日期")
-    activity_name = st.text_input("活動名稱")
-    activity_place = st.text_input("活動地點")
+    activity_name = st.text_input("活動名稱", key="activity_name_input")
+    activity_place = st.text_input("活動地點", key="activity_place_input")
 
 with col2:
-    activity_date = st.text_input("活動日期")
+    activity_date = st.text_input("活動日期", key="activity_date_input")
     school_people = st.number_input("本校學生人數", min_value=0, step=1)
     outside_people = st.number_input("校外人士人數", min_value=0, step=1)
     if officers:

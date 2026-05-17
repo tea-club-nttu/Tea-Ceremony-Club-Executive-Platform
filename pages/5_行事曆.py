@@ -1,3 +1,6 @@
+import calendar
+from datetime import date
+
 import streamlit as st
 
 from utils.auth import require_login, logout_button
@@ -25,6 +28,52 @@ with st.sidebar:
 st.title("行事曆")
 st.caption("記錄社課、會議與活動時程。")
 st.caption(f"目前儲存方式：{storage_label()}")
+
+events = load_events()
+
+st.subheader("月曆")
+today = date.today()
+month_col1, month_col2 = st.columns(2)
+
+with month_col1:
+    selected_year = st.number_input("年份", min_value=2020, max_value=2100, value=today.year, step=1)
+with month_col2:
+    selected_month = st.selectbox("月份", list(range(1, 13)), index=today.month - 1)
+
+events_by_date: dict[str, list[dict[str, str]]] = {}
+for event in events:
+    events_by_date.setdefault(event["日期"], []).append(event)
+
+weekdays = ["一", "二", "三", "四", "五", "六", "日"]
+for column, weekday in zip(st.columns(7), weekdays):
+    column.markdown(f"**{weekday}**")
+
+calendar_weeks = calendar.Calendar(firstweekday=0).monthdatescalendar(
+    int(selected_year),
+    int(selected_month),
+)
+
+for week in calendar_weeks:
+    columns = st.columns(7)
+    for column, day in zip(columns, week):
+        day_key = day.strftime("%Y-%m-%d")
+        day_events = events_by_date.get(day_key, [])
+        muted = day.month != selected_month
+        heading = f"**{day.day}**" if not muted else f":gray[{day.day}]"
+
+        with column.container(border=True):
+            st.markdown(heading)
+            if day_events:
+                for event in day_events:
+                    time_text = event.get("時間", "")
+                    title = event.get("活動名稱", "")
+                    location = event.get("地點", "")
+                    line = " ".join(item for item in (time_text, title) if item)
+                    st.caption(line)
+                    if location:
+                        st.caption(f"@ {location}")
+            else:
+                st.caption(" ")
 
 st.subheader("新增行程")
 with st.form("calendar_event_form", clear_on_submit=True):
@@ -57,7 +106,6 @@ if submitted:
         st.rerun()
 
 st.subheader("行程列表")
-events = load_events()
 
 if events:
     st.dataframe(events, use_container_width=True, hide_index=True)
