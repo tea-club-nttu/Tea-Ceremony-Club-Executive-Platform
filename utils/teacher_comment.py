@@ -13,6 +13,53 @@ def generate_gemini_text(
     prompt: str,
     images: list[object] | None = None,
 ) -> str:
+    return generate_gemini_result(
+        api_key=api_key,
+        model=model,
+        system_instruction=system_instruction,
+        prompt=prompt,
+        images=images,
+    )["text"]
+
+
+def gemini_debug_info(data: dict, text: str) -> dict[str, object]:
+    candidates = data.get("candidates", [])
+    finish_reasons = []
+    safety_ratings = []
+    part_count = 0
+
+    for candidate in candidates:
+        finish_reason = candidate.get("finishReason")
+        if finish_reason:
+            finish_reasons.append(finish_reason)
+
+        if candidate.get("safetyRatings"):
+            safety_ratings.append(candidate.get("safetyRatings"))
+
+        content = candidate.get("content", {})
+        part_count += len(content.get("parts", []))
+
+    usage = data.get("usageMetadata", {})
+    return {
+        "candidate_count": len(candidates),
+        "part_count": part_count,
+        "finish_reasons": finish_reasons,
+        "text_length": len(text),
+        "prompt_token_count": usage.get("promptTokenCount"),
+        "candidates_token_count": usage.get("candidatesTokenCount"),
+        "total_token_count": usage.get("totalTokenCount"),
+        "safety_ratings": safety_ratings,
+    }
+
+
+def generate_gemini_result(
+    *,
+    api_key: str,
+    model: str,
+    system_instruction: str,
+    prompt: str,
+    images: list[object] | None = None,
+) -> dict[str, object]:
     parts = [{"text": prompt}]
 
     for image in images or []:
@@ -79,7 +126,10 @@ def generate_gemini_text(
     if not generated_text:
         raise RuntimeError("Gemini API 未回傳文字內容。")
 
-    return generated_text
+    return {
+        "text": generated_text,
+        "debug": gemini_debug_info(data, generated_text),
+    }
 
 
 def clean_generated_text(text: str) -> str:
@@ -181,6 +231,25 @@ def repair_generated_text(
     weak_text: str,
     images: list[object] | None = None,
 ) -> str:
+    return repair_generated_text_with_preview(
+        api_key=api_key,
+        model=model,
+        system_instruction=system_instruction,
+        original_prompt=original_prompt,
+        weak_text=weak_text,
+        images=images,
+    )["text"]
+
+
+def repair_generated_text_with_preview(
+    *,
+    api_key: str,
+    model: str,
+    system_instruction: str,
+    original_prompt: str,
+    weak_text: str,
+    images: list[object] | None = None,
+) -> dict[str, object]:
     repair_prompt = f"""
 以下文字太短、太空泛或沒有完整結尾，請根據原始資料重寫成更好的成果書文字。
 
@@ -198,7 +267,7 @@ def repair_generated_text(
 - 禁止使用「豐富多元」、「積極參與熱情」、「收穫良多」、「圓滿成功」等套話
 """.strip()
 
-    return generate_gemini_text(
+    return generate_gemini_result(
         api_key=api_key,
         model=model,
         system_instruction=system_instruction,
@@ -213,12 +282,16 @@ def ai_preview(
     raw_text: str = "",
     repaired_text: str = "",
     status: str,
-) -> dict[str, str]:
+    raw_debug: dict[str, object] | None = None,
+    repaired_debug: dict[str, object] | None = None,
+) -> dict[str, object]:
     return {
         "status": status,
         "raw_text": raw_text,
         "repaired_text": repaired_text,
         "final_text": final_text,
+        "raw_debug": raw_debug or {},
+        "repaired_debug": repaired_debug or {},
     }
 
 
@@ -246,7 +319,7 @@ def generate_teacher_comment_with_preview(
     activity_name: str,
     activity_review: str,
     photo_descriptions: list[str],
-) -> dict[str, str]:
+) -> dict[str, object]:
     if not api_key:
         fallback_text = fallback_teacher_comment(
             activity_name=activity_name,
@@ -295,29 +368,33 @@ def generate_teacher_comment_with_preview(
 """.strip()
 
     system_instruction = "你是嚴謹的學校成果書編輯，只寫具體、可提交的繁體中文行政文字。"
-    generated_text = clean_generated_text(generate_gemini_text(
+    generated_result = generate_gemini_result(
         api_key=api_key,
         model=model,
         system_instruction=system_instruction,
         prompt=prompt,
-    ))
+    )
+    generated_text = clean_generated_text(str(generated_result["text"]))
+    generated_debug = generated_result["debug"]
 
     if is_weak_teacher_comment(generated_text):
-        repaired_text = clean_generated_text(
-            repair_generated_text(
-                api_key=api_key,
-                model=model,
-                system_instruction=system_instruction,
-                original_prompt=prompt,
-                weak_text=generated_text,
-            )
+        repaired_result = repair_generated_text_with_preview(
+            api_key=api_key,
+            model=model,
+            system_instruction=system_instruction,
+            original_prompt=prompt,
+            weak_text=generated_text,
         )
+        repaired_text = clean_generated_text(str(repaired_result["text"]))
+        repaired_debug = repaired_result["debug"]
         if not is_weak_teacher_comment(repaired_text):
             return ai_preview(
                 final_text=repaired_text,
                 raw_text=generated_text,
                 repaired_text=repaired_text,
                 status="Gemini 原始稿不符合品質規則，已使用 Gemini 重寫稿。",
+                raw_debug=generated_debug,
+                repaired_debug=repaired_debug,
             )
 
         fallback_text = fallback_teacher_comment(
@@ -330,12 +407,15 @@ def generate_teacher_comment_with_preview(
             raw_text=generated_text,
             repaired_text=repaired_text,
             status="Gemini 重寫後仍不符合品質規則，使用本機草稿。",
+            raw_debug=generated_debug,
+            repaired_debug=repaired_debug,
         )
 
     return ai_preview(
         final_text=generated_text,
         raw_text=generated_text,
         status="使用 Gemini 原始稿。",
+        raw_debug=generated_debug,
     )
 
 
@@ -363,7 +443,7 @@ def generate_activity_overview_with_preview(
     activity_name: str,
     photo_descriptions: list[str],
     photos: list[object] | None = None,
-) -> dict[str, str]:
+) -> dict[str, object]:
     if not api_key:
         fallback_text = fallback_activity_overview(
             activity_name=activity_name,
@@ -411,31 +491,35 @@ def generate_activity_overview_with_preview(
 """.strip()
 
     system_instruction = "你是嚴謹的學校成果書編輯，只寫具體、可提交的繁體中文行政文字。"
-    generated_text = clean_generated_text(generate_gemini_text(
+    generated_result = generate_gemini_result(
         api_key=api_key,
         model=model,
         system_instruction=system_instruction,
         prompt=prompt,
         images=photos,
-    ))
+    )
+    generated_text = clean_generated_text(str(generated_result["text"]))
+    generated_debug = generated_result["debug"]
 
     if is_weak_activity_overview(generated_text):
-        repaired_text = clean_generated_text(
-            repair_generated_text(
-                api_key=api_key,
-                model=model,
-                system_instruction=system_instruction,
-                original_prompt=prompt,
-                weak_text=generated_text,
-                images=photos,
-            )
+        repaired_result = repair_generated_text_with_preview(
+            api_key=api_key,
+            model=model,
+            system_instruction=system_instruction,
+            original_prompt=prompt,
+            weak_text=generated_text,
+            images=photos,
         )
+        repaired_text = clean_generated_text(str(repaired_result["text"]))
+        repaired_debug = repaired_result["debug"]
         if not is_weak_activity_overview(repaired_text):
             return ai_preview(
                 final_text=repaired_text,
                 raw_text=generated_text,
                 repaired_text=repaired_text,
                 status="Gemini 原始稿不符合品質規則，已使用 Gemini 重寫稿。",
+                raw_debug=generated_debug,
+                repaired_debug=repaired_debug,
             )
 
         fallback_text = fallback_activity_overview(
@@ -447,10 +531,13 @@ def generate_activity_overview_with_preview(
             raw_text=generated_text,
             repaired_text=repaired_text,
             status="Gemini 重寫後仍不符合品質規則，使用本機草稿。",
+            raw_debug=generated_debug,
+            repaired_debug=repaired_debug,
         )
 
     return ai_preview(
         final_text=generated_text,
         raw_text=generated_text,
         status="使用 Gemini 原始稿。",
+        raw_debug=generated_debug,
     )

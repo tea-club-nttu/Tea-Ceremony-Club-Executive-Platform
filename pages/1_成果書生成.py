@@ -48,6 +48,9 @@ def show_ai_preview(title: str, preview: dict[str, str] | None) -> None:
                 disabled=True,
                 key=f"{key_prefix}_raw",
             )
+            raw_debug = preview.get("raw_debug", {})
+            if raw_debug:
+                st.json(raw_debug)
 
         repaired_text = preview.get("repaired_text", "")
         if repaired_text:
@@ -58,6 +61,9 @@ def show_ai_preview(title: str, preview: dict[str, str] | None) -> None:
                 disabled=True,
                 key=f"{key_prefix}_repaired",
             )
+            repaired_debug = preview.get("repaired_debug", {})
+            if repaired_debug:
+                st.json(repaired_debug)
 
         st.text_area(
             "最後採用文字",
