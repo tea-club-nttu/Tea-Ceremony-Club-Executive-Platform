@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 from utils.achievement_report import (
@@ -161,9 +162,10 @@ if st.session_state.get("last_calendar_event_index") != selected_calendar_event_
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    today = date.today()
-    fill_date = f"{today.month}月{today.day}日"
-    st.text_input("填寫日期", value=fill_date, disabled=True)
+    if "fill_date_input" not in st.session_state:
+        today = datetime.now(ZoneInfo("Asia/Taipei"))
+        st.session_state["fill_date_input"] = f"{today.month}月{today.day}日"
+    fill_date = st.text_input("填寫日期", key="fill_date_input")
     activity_name = st.text_input("活動名稱", key="activity_name_input")
     activity_place = st.text_input("活動地點", key="activity_place_input")
 
