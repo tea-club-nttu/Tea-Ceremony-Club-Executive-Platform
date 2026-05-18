@@ -1,18 +1,20 @@
 import re
+from datetime import datetime
 
 import streamlit as st
 
 from utils.application_form import (
     DEFAULT_APPLICATION_TEMPLATE_PATH,
     build_application_form,
-    roc_date_from_iso,
 )
 from utils.auth import require_login, logout_button
 from utils.calendar_store import format_event_label, load_events
 from utils.officer_store import load_officers
 from utils.teacher_comment import (
     DEFAULT_GROQ_MODEL,
+    fallback_application_progress,
     fallback_application_purpose,
+    generate_application_progress_with_preview,
     generate_application_purpose_with_preview,
 )
 
@@ -43,6 +45,25 @@ def application_form_file_name(activity_date: str, activity_name: str) -> str:
         clean_name = "活動申請書"
     prefix = f"{compact_date}_" if compact_date else ""
     return f"{prefix}{clean_name}_活動申請書.docx"
+
+
+def roc_date_from_iso(value: str) -> str:
+    text = str(value).strip()
+    if not text:
+        return ""
+
+    try:
+        parsed = datetime.strptime(text, "%Y-%m-%d").date()
+    except ValueError:
+        return text
+
+    return f"{parsed.year - 1911}/{parsed.month}/{parsed.day}"
+
+
+def model_message(preview: dict[str, object]) -> str:
+    provider = str(preview.get("provider", ""))
+    model = str(preview.get("model", ""))
+    return f"{provider}: {model}" if model else provider
 
 
 with st.expander("範本設定", expanded=False):
@@ -78,14 +99,12 @@ else:
 
 event_name = selected_calendar_event.get("活動名稱", "") if selected_calendar_event else ""
 event_date = selected_calendar_event.get("日期", "") if selected_calendar_event else ""
-event_place = selected_calendar_event.get("地點", "") if selected_calendar_event else ""
 event_leader = selected_calendar_event.get("活動負責人", "") if selected_calendar_event else ""
 
 if st.session_state.get("application_last_calendar_event_index") != selected_calendar_event_index:
     if selected_calendar_event is not None:
         st.session_state["application_activity_name_input"] = event_name
         st.session_state["application_activity_date_input"] = roc_date_from_iso(event_date)
-        st.session_state["application_activity_place_input"] = event_place or "靜心書院A202"
         if event_leader:
             st.session_state["application_calendar_event_leader"] = event_leader
             for index, officer in enumerate(officers):
@@ -94,16 +113,22 @@ if st.session_state.get("application_last_calendar_event_index") != selected_cal
                     break
     st.session_state["application_last_calendar_event_index"] = selected_calendar_event_index
 
-if "application_activity_place_input" not in st.session_state:
-    st.session_state["application_activity_place_input"] = "靜心書院A202"
 if "application_tea_topic_input" not in st.session_state:
     st.session_state["application_tea_topic_input"] = "茶"
-if "application_snack_purpose_input" not in st.session_state:
-    st.session_state["application_snack_purpose_input"] = "活動點心與材料費"
+if "application_snack_item_input" not in st.session_state:
+    st.session_state["application_snack_item_input"] = ""
 if "application_activity_purpose_input" not in st.session_state:
     st.session_state["application_activity_purpose_input"] = DEFAULT_PURPOSE
 if "application_activity_purpose_preview" not in st.session_state:
     st.session_state["application_activity_purpose_preview"] = None
+if "application_activity_progress_input" not in st.session_state:
+    st.session_state["application_activity_progress_input"] = fallback_application_progress(
+        activity_name="",
+        tea_topic="茶",
+        snack_item="",
+    )
+if "application_activity_progress_preview" not in st.session_state:
+    st.session_state["application_activity_progress_preview"] = None
 
 col1, col2, col3 = st.columns(3)
 
@@ -114,49 +139,46 @@ with col1:
         key="application_activity_date_input",
         help="會寫入申請書的活動日期與活動時間欄位，例如 115/5/18 或 115/5/18 19:00~21:00。",
     )
-    activity_place = st.text_input(
-        "活動地點",
-        key="application_activity_place_input",
-    )
 
 with col2:
     if officers:
         if "application_leader_index" not in st.session_state:
             st.session_state["application_leader_index"] = 0
+        if "application_deputy_leader_index" not in st.session_state:
+            st.session_state["application_deputy_leader_index"] = min(1, len(officers) - 1)
+
         selected_leader_index = st.selectbox(
             "活動聯絡人",
             list(range(len(officers))),
             format_func=lambda index: officers[index].get("姓名", ""),
             key="application_leader_index",
         )
+        selected_deputy_leader_index = st.selectbox(
+            "活動副負責人",
+            list(range(len(officers))),
+            format_func=lambda index: officers[index].get("姓名", ""),
+            key="application_deputy_leader_index",
+        )
         activity_leader = officers[selected_leader_index].get("姓名", "")
+        activity_deputy_leader = officers[selected_deputy_leader_index].get("姓名", "")
     else:
         activity_leader = st.text_input(
             "活動聯絡人",
             value=event_leader,
             key="application_activity_leader_input",
         )
+        activity_deputy_leader = st.text_input(
+            "活動副負責人",
+            key="application_activity_deputy_leader_input",
+        )
     leader_phone = st.text_input("聯絡人電話", key="application_leader_phone_input")
-    estimated_people = st.number_input(
-        "預估人數",
-        min_value=0,
-        step=1,
-        value=30,
-        key="application_estimated_people_input",
-    )
 
 with col3:
     tea_topic = st.text_input("介紹茶品", key="application_tea_topic_input")
-    snack_unit_price = st.number_input(
-        "點心單價",
-        min_value=0,
-        step=10,
-        value=100,
-        key="application_snack_unit_price_input",
-    )
-    snack_purpose = st.text_input(
-        "點心用途說明",
-        key="application_snack_purpose_input",
+    snack_item = st.text_input(
+        "點心內容",
+        key="application_snack_item_input",
+        help="若活動名稱或點心內容有茶食堂、DIY、手作、製作，AI 才會安排點心 DIY；沒有明確線索就不安排。",
     )
 
 purpose_col1, purpose_col2 = st.columns([1, 3])
@@ -166,9 +188,7 @@ with purpose_col2:
     purpose_preview = st.session_state["application_activity_purpose_preview"]
     if purpose_preview:
         status = str(purpose_preview.get("status", ""))
-        provider = str(purpose_preview.get("provider", ""))
-        model = str(purpose_preview.get("model", ""))
-        model_text = f"{provider}: {model}" if model else provider
+        model_text = model_message(purpose_preview)
         if status.startswith("使用 ") and status.endswith("原始稿。"):
             st.success(f"AI 順利產出。調用模型：{model_text}")
         else:
@@ -206,16 +226,64 @@ activity_purpose = st.text_area(
     key="application_activity_purpose_input",
 )
 
+st.subheader("活動進行")
+st.warning("AI 產生的流程只是草稿，請務必確認時間、順序、點心 DIY 是否符合實際活動。")
+progress_col1, progress_col2 = st.columns([1, 3])
+with progress_col1:
+    generate_progress = st.button("由活動名稱生成活動進行")
+with progress_col2:
+    progress_preview = st.session_state["application_activity_progress_preview"]
+    if progress_preview:
+        status = str(progress_preview.get("status", ""))
+        model_text = model_message(progress_preview)
+        if status.startswith("使用 ") and status.endswith("原始稿。"):
+            st.success(f"AI 順利產出。調用模型：{model_text}")
+        else:
+            st.info(status)
+            if model_text:
+                st.caption(f"調用模型：{model_text}")
+
+if generate_progress:
+    if not activity_name.strip():
+        st.error("請先輸入活動名稱，再生成活動進行。")
+    else:
+        try:
+            api_key = st.secrets.get("GEMINI_API_KEY")
+            model = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash")
+            groq_api_key = st.secrets.get("GROQ_API_KEY")
+            groq_model = st.secrets.get("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+            with st.spinner("正在用 AI 生成活動進行..."):
+                preview = generate_application_progress_with_preview(
+                    api_key=api_key,
+                    model=model,
+                    groq_api_key=groq_api_key,
+                    groq_model=groq_model,
+                    activity_name=activity_name,
+                    tea_topic=tea_topic,
+                    snack_item=snack_item,
+                )
+                st.session_state["application_activity_progress_preview"] = preview
+                st.session_state["application_activity_progress_input"] = preview["final_text"]
+            st.rerun()
+        except Exception as exc:
+            st.error("活動進行生成失敗，請確認 GEMINI_API_KEY / GROQ_API_KEY 是否正確，或稍後再試。")
+            st.exception(exc)
+
+activity_progress = st.text_area(
+    "活動進行",
+    height=120,
+    key="application_activity_progress_input",
+)
+
 fields = {
     "activity_name": activity_name,
     "activity_date": activity_date,
-    "activity_place": activity_place,
     "activity_leader": activity_leader,
+    "activity_deputy_leader": activity_deputy_leader,
     "leader_phone": leader_phone,
     "activity_purpose": activity_purpose,
-    "estimated_people": estimated_people,
-    "snack_unit_price": snack_unit_price,
-    "snack_purpose": snack_purpose,
+    "activity_progress": activity_progress,
+    "snack_item": snack_item,
     "tea_topic": tea_topic,
 }
 
@@ -227,7 +295,6 @@ if st.button("產生活動申請書", type="primary"):
             output = build_application_form(
                 template_file=template_file,
                 fields=fields,
-                officers=officers,
             )
         except Exception as exc:
             st.error("活動申請書產生失敗，請確認範本格式是否正確。")

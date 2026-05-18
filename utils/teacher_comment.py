@@ -329,6 +329,36 @@ def fallback_application_purpose(*, activity_name: str) -> str:
     )
 
 
+def has_snack_diy(*, activity_name: str, snack_item: str) -> bool:
+    joined = f"{activity_name} {snack_item}"
+    return any(keyword in joined for keyword in ("茶食堂", "DIY", "diy", "手作", "製作"))
+
+
+def fallback_application_progress(
+    *,
+    activity_name: str,
+    tea_topic: str,
+    snack_item: str,
+) -> str:
+    name = activity_name.strip()
+    tea = tea_topic.strip() or "茶"
+    segments = ["19:35-19:45 破冰活動"]
+
+    if any(keyword in name for keyword in ("封箱", "期末")):
+        segments.append("19:45-20:00 本學期回顧影片欣賞與社歌練唱")
+    elif any(keyword in name for keyword in ("開箱", "開春", "期初")):
+        segments.append("19:45-20:00 期初回顧影片欣賞與社歌練唱")
+
+    if has_snack_diy(activity_name=name, snack_item=snack_item):
+        snack = snack_item.strip() or "點心"
+        diy_label = snack if "DIY" in snack.upper() else f"{snack}DIY"
+        segments.append(f"20:00-20:25 {diy_label}")
+        segments.extend([f"20:25-20:40 介紹{tea}", "20:40-20:50 泡茶與品茶交流"])
+    else:
+        segments.extend([f"20:00-20:20 介紹{tea}", "20:20-20:50 泡茶與品茶交流"])
+    return " / ".join(segments)
+
+
 def is_weak_activity_overview(text: str) -> bool:
     stripped = clean_generated_text(text)
     if len(stripped) < 45:
@@ -674,6 +704,100 @@ def generate_application_purpose_with_preview(
             final_text=fallback_text,
             raw_text=generated_text,
             status=f"{result_source(generated_result)} 原始稿不符合品質規則，使用本機草稿。",
+            raw_debug=generated_result["debug"],
+            provider=str(generated_result.get("provider", "AI")),
+            model=str(generated_result.get("model", "")),
+        )
+
+    return ai_preview(
+        final_text=generated_text,
+        raw_text=generated_text,
+        status=f"使用 {result_source(generated_result)} 原始稿。",
+        raw_debug=generated_result["debug"],
+        provider=str(generated_result.get("provider", "AI")),
+        model=str(generated_result.get("model", "")),
+    )
+
+
+def generate_application_progress_with_preview(
+    *,
+    api_key: str | None,
+    model: str,
+    groq_api_key: str | None = None,
+    groq_model: str = DEFAULT_GROQ_MODEL,
+    activity_name: str,
+    tea_topic: str,
+    snack_item: str,
+) -> dict[str, object]:
+    if not api_key and not groq_api_key:
+        fallback_text = fallback_application_progress(
+            activity_name=activity_name,
+            tea_topic=tea_topic,
+            snack_item=snack_item,
+        )
+        return ai_preview(final_text=fallback_text, status="未設定 API key，使用本機草稿。")
+
+    snack_rule = (
+        "若活動名稱或點心內容包含「茶食堂」、「DIY」、「手作」、「製作」，才安排點心DIY；"
+        "如果沒有明確線索，不要安排點心DIY。"
+    )
+    prompt = f"""
+請根據茶道社活動資料，生成活動申請書「活動進行」欄位文字。
+
+活動名稱：{activity_name or "未填"}
+介紹茶品：{tea_topic or "茶"}
+點心內容：{snack_item or "未填"}
+
+固定背景：
+- 封箱茶會通常是期末或本學期最後社課。
+- 開箱或開春通常是期初社課。
+- 期初與期末活動通常會安排回顧影片與唱社歌。
+- 常見活動元素包含破冰活動、介紹茶、喝茶。
+- {snack_rule}
+
+輸出要求：
+- 只輸出流程內容，不要加標題、解釋或條列符號。
+- 使用「19:35-19:45 破冰活動 / 19:45-20:00 ...」這種格式。
+- 時間需接在 19:30-19:35 開場之後，並在 20:50 前結束，因為模板後面已保留 20:50-21:00 小組時間。
+- 流程需合理、可執行，不要排太多項目。
+- 必須包含破冰活動、介紹茶、喝茶。
+- 若判斷為期初或期末，需加入回顧影片與唱社歌。
+- 不要捏造不合理的活動項目。
+""".strip()
+
+    system_instruction = "你是嚴謹的社團活動企劃，只輸出可放入活動申請書的繁體中文流程文字。"
+    try:
+        generated_result = generate_ai_result(
+            gemini_api_key=api_key,
+            gemini_model=model,
+            groq_api_key=groq_api_key,
+            groq_model=groq_model,
+            system_instruction=system_instruction,
+            prompt=prompt,
+        )
+    except RuntimeError as exc:
+        fallback_text = fallback_application_progress(
+            activity_name=activity_name,
+            tea_topic=tea_topic,
+            snack_item=snack_item,
+        )
+        return ai_preview(
+            final_text=fallback_text,
+            status=f"AI 呼叫失敗，已使用本機草稿。{exc}",
+        )
+
+    generated_text = clean_generated_text(str(generated_result["text"]))
+    required_terms = ("破冰", "介紹", "茶")
+    if not generated_text or any(term not in generated_text for term in required_terms):
+        fallback_text = fallback_application_progress(
+            activity_name=activity_name,
+            tea_topic=tea_topic,
+            snack_item=snack_item,
+        )
+        return ai_preview(
+            final_text=fallback_text,
+            raw_text=generated_text,
+            status=f"{result_source(generated_result)} 原始稿不符合流程規則，使用本機草稿。",
             raw_debug=generated_result["debug"],
             provider=str(generated_result.get("provider", "AI")),
             model=str(generated_result.get("model", "")),
