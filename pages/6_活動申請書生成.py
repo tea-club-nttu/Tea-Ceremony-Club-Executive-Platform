@@ -170,14 +170,29 @@ with col3:
     snack_item = st.text_input(
         "點心內容",
         key="application_snack_item_input",
-        help="若活動名稱或點心內容有茶食堂、DIY、手作、製作，AI 才會安排點心 DIY；沒有明確線索就不安排。",
+        help="會寫入模板的 {{點心}}，也會提供給 AI 安排活動流程。",
+    )
+    include_icebreaker = st.checkbox(
+        "活動進行包含破冰活動",
+        value=True,
+        key="application_include_icebreaker",
+    )
+    include_snack_diy = st.checkbox(
+        "活動進行包含點心 DIY",
+        value=False,
+        key="application_include_snack_diy",
+    )
+    include_health_chat = st.checkbox(
+        "活動進行包含健康聊齋",
+        value=False,
+        key="application_include_health_chat",
     )
 
 st.subheader("活動進行")
-st.warning("AI 產生的流程只是草稿，請務必確認時間、順序、點心 DIY 是否符合實際活動。")
+st.warning("AI 產生的流程只是草稿，請務必確認時間、順序、破冰、點心 DIY 與健康聊齋是否符合實際活動。")
 progress_col1, progress_col2 = st.columns([1, 3])
 with progress_col1:
-    generate_progress = st.button("由活動名稱生成活動進行")
+    generate_progress = st.button("由設定生成活動進行")
 with progress_col2:
     progress_preview = st.session_state["application_activity_progress_preview"]
     if progress_preview:
@@ -208,6 +223,9 @@ if generate_progress:
                     activity_name=activity_name,
                     tea_topic=tea_topic,
                     snack_item=snack_item,
+                    include_icebreaker=include_icebreaker,
+                    include_snack_diy=include_snack_diy,
+                    include_health_chat=include_health_chat,
                 )
                 st.session_state["application_activity_progress_preview"] = preview
                 st.session_state["application_activity_progress_input"] = preview["final_text"]

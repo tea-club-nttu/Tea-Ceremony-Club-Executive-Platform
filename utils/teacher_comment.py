@@ -340,9 +340,15 @@ def fallback_application_purpose(*, activity_name: str, activity_progress: str =
     )
 
 
-def has_snack_diy(*, activity_name: str, snack_item: str) -> bool:
-    joined = f"{activity_name} {snack_item}"
-    return any(keyword in joined for keyword in ("茶食堂", "DIY", "diy", "手作", "製作"))
+def format_activity_time(minutes: int) -> str:
+    hour = minutes // 60
+    minute = minutes % 60
+    return f"{hour:02d}:{minute:02d}"
+
+
+def activity_segment(start: int, duration: int, title: str) -> tuple[int, str]:
+    end = start + duration
+    return end, f"{format_activity_time(start)}-{format_activity_time(end)} {title}"
 
 
 def fallback_application_progress(
@@ -350,23 +356,47 @@ def fallback_application_progress(
     activity_name: str,
     tea_topic: str,
     snack_item: str,
+    include_icebreaker: bool = True,
+    include_snack_diy: bool = False,
+    include_health_chat: bool = False,
 ) -> str:
     name = activity_name.strip()
     tea = tea_topic.strip() or "茶"
-    segments = ["19:35-19:45 破冰活動"]
+    snack = snack_item.strip() or "點心"
+    current = 19 * 60 + 35
+    segments = []
+
+    if include_icebreaker:
+        current, segment = activity_segment(current, 10, "破冰活動")
+        segments.append(segment)
 
     if any(keyword in name for keyword in ("封箱", "期末")):
-        segments.append("19:45-20:00 本學期回顧影片欣賞與社歌練唱")
+        current, segment = activity_segment(current, 15, "本學期回顧影片欣賞與社歌練唱")
+        segments.append(segment)
     elif any(keyword in name for keyword in ("開箱", "開春", "期初")):
-        segments.append("19:45-20:00 期初回顧影片欣賞與社歌練唱")
+        current, segment = activity_segment(current, 15, "期初回顧影片欣賞與社歌練唱")
+        segments.append(segment)
 
-    if has_snack_diy(activity_name=name, snack_item=snack_item):
-        snack = snack_item.strip() or "點心"
+    if include_health_chat:
+        current, segment = activity_segment(current, 10, "健康聊齋")
+        segments.append(segment)
+
+    if include_snack_diy:
         diy_label = snack if "DIY" in snack.upper() else f"{snack}DIY"
-        segments.append(f"20:00-20:25 {diy_label}")
-        segments.extend([f"20:25-20:40 介紹{tea}", "20:40-20:50 泡茶與品茶交流"])
+        current, segment = activity_segment(current, 20, diy_label)
+        segments.append(segment)
+
+    remaining = max((20 * 60 + 50) - current, 20)
+    intro_duration = 15 if remaining >= 30 else 10
+    current, segment = activity_segment(current, intro_duration, f"介紹{tea}")
+    segments.append(segment)
+
+    if current < 20 * 60 + 50:
+        _, segment = activity_segment(current, (20 * 60 + 50) - current, "泡茶與品茶交流")
+        segments.append(segment)
     else:
-        segments.extend([f"20:00-20:20 介紹{tea}", "20:20-20:50 泡茶與品茶交流"])
+        segments.append("20:40-20:50 泡茶與品茶交流")
+
     return "\n".join(segments)
 
 
@@ -752,39 +782,50 @@ def generate_application_progress_with_preview(
     activity_name: str,
     tea_topic: str,
     snack_item: str,
+    include_icebreaker: bool = True,
+    include_snack_diy: bool = False,
+    include_health_chat: bool = False,
 ) -> dict[str, object]:
     if not api_key and not groq_api_key:
         fallback_text = fallback_application_progress(
             activity_name=activity_name,
             tea_topic=tea_topic,
             snack_item=snack_item,
+            include_icebreaker=include_icebreaker,
+            include_snack_diy=include_snack_diy,
+            include_health_chat=include_health_chat,
         )
         return ai_preview(final_text=fallback_text, status="未設定 API key，使用本機草稿。")
 
-    snack_rule = (
-        "若活動名稱或點心內容包含「茶食堂」、「DIY」、「手作」、「製作」，才安排點心DIY；"
-        "如果沒有明確線索，不要安排點心DIY。"
-    )
+    icebreaker_rule = "需要安排破冰活動。" if include_icebreaker else "不要安排破冰活動。"
+    snack_rule = "需要安排點心DIY。" if include_snack_diy else "不要安排點心DIY。"
+    health_rule = "需要安排健康聊齋。" if include_health_chat else "不要安排健康聊齋。"
     prompt = f"""
 請根據茶道社活動資料，生成活動申請書「活動進行」欄位文字。
 
 活動名稱：{activity_name or "未填"}
 介紹茶品：{tea_topic or "茶"}
 點心內容：{snack_item or "未填"}
+是否安排破冰活動：{"是" if include_icebreaker else "否"}
+是否安排點心DIY：{"是" if include_snack_diy else "否"}
+是否安排健康聊齋：{"是" if include_health_chat else "否"}
 
 固定背景：
 - 封箱茶會通常是期末或本學期最後社課。
 - 開箱或開春通常是期初社課。
 - 期初與期末活動通常會安排回顧影片與唱社歌。
-- 常見活動元素包含破冰活動、介紹茶、喝茶。
+- 常見活動元素包含介紹茶、喝茶。
+- 健康聊齋是茶道社可安排的主題交流活動。
+- {icebreaker_rule}
 - {snack_rule}
+- {health_rule}
 
 輸出要求：
 - 只輸出流程內容，不要加標題、解釋或條列符號。
 - 一行一個流程，使用「19:35-19:45 破冰活動」這種格式。
 - 時間需接在 19:30-19:35 開場之後，並在 20:50 前結束，因為模板後面已保留 20:50-21:00 小組時間。
 - 流程需合理、可執行，不要排太多項目。
-- 必須包含破冰活動、介紹茶、喝茶。
+- 必須包含介紹茶、喝茶。
 - 若判斷為期初或期末，需加入回顧影片與唱社歌。
 - 不要捏造不合理的活動項目。
 """.strip()
@@ -804,6 +845,9 @@ def generate_application_progress_with_preview(
             activity_name=activity_name,
             tea_topic=tea_topic,
             snack_item=snack_item,
+            include_icebreaker=include_icebreaker,
+            include_snack_diy=include_snack_diy,
+            include_health_chat=include_health_chat,
         )
         return ai_preview(
             final_text=fallback_text,
@@ -811,12 +855,21 @@ def generate_application_progress_with_preview(
         )
 
     generated_text = str(generated_result["text"]).strip()
-    required_terms = ("破冰", "介紹", "茶")
+    required_terms = ["介紹", "茶"]
+    if include_icebreaker:
+        required_terms.append("破冰")
+    if include_snack_diy:
+        required_terms.append("DIY")
+    if include_health_chat:
+        required_terms.append("健康聊齋")
     if not generated_text or any(term not in generated_text for term in required_terms):
         fallback_text = fallback_application_progress(
             activity_name=activity_name,
             tea_topic=tea_topic,
             snack_item=snack_item,
+            include_icebreaker=include_icebreaker,
+            include_snack_diy=include_snack_diy,
+            include_health_chat=include_health_chat,
         )
         return ai_preview(
             final_text=fallback_text,
