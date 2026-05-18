@@ -321,8 +321,19 @@ def fallback_activity_overview(
     )
 
 
-def fallback_application_purpose(*, activity_name: str) -> str:
+def fallback_application_purpose(*, activity_name: str, activity_progress: str = "") -> str:
     name = activity_name.strip() or "本次活動"
+    progress = "、".join(
+        line.split(" ", 1)[-1].strip()
+        for line in activity_progress.splitlines()
+        if line.strip()
+    )
+    if progress:
+        return (
+            f"{name}旨在透過{progress}等流程，引導參與學生認識茶道活動內容與社團運作方式，"
+            "並在實作與互動過程中培養團隊合作、溝通表達與行政執行能力。"
+        )
+
     return (
         f"{name}旨在透過茶席布置、茶具介紹與泡茶實作，引導參與學生認識茶道禮儀與茶文化，"
         "並在活動分工與互動過程中培養團隊合作、溝通表達與行政執行能力。"
@@ -356,7 +367,7 @@ def fallback_application_progress(
         segments.extend([f"20:25-20:40 介紹{tea}", "20:40-20:50 泡茶與品茶交流"])
     else:
         segments.extend([f"20:00-20:20 介紹{tea}", "20:20-20:50 泡茶與品茶交流"])
-    return " / ".join(segments)
+    return "\n".join(segments)
 
 
 def is_weak_activity_overview(text: str) -> bool:
@@ -659,25 +670,32 @@ def generate_application_purpose_with_preview(
     groq_api_key: str | None = None,
     groq_model: str = DEFAULT_GROQ_MODEL,
     activity_name: str,
+    activity_progress: str = "",
 ) -> dict[str, object]:
     if not api_key and not groq_api_key:
-        fallback_text = fallback_application_purpose(activity_name=activity_name)
+        fallback_text = fallback_application_purpose(
+            activity_name=activity_name,
+            activity_progress=activity_progress,
+        )
         return ai_preview(final_text=fallback_text, status="未設定 API key，使用本機草稿。")
 
     prompt = f"""
-請根據茶道社活動名稱，生成活動申請計畫書中的「活動宗旨」。
+請根據茶道社活動名稱與活動進行內容，生成活動申請計畫書中的「活動宗旨」。
 
 活動名稱：{activity_name or "未填"}
+活動進行：
+{activity_progress or "未填"}
 
 要求：
 - 使用繁體中文
 - 適合放在學校社團活動申請書
 - 語氣正式、清楚、可提交
-- 內容需包含活動目的、參與者能學到什麼，以及社團行政或團隊合作意義
+- 內容需呼應活動進行中的實際流程，再整理成活動目的
+- 內容需包含參與者能學到什麼，以及社團行政或團隊合作意義
 - 不要條列
 - 80 到 120 字，必須是一段完整文字並以句號結尾
 - 不要使用「豐富多元」、「收穫良多」、「圓滿成功」等套話
-- 不要捏造活動名稱以外無法推知的具體細節
+- 不要捏造活動名稱與活動進行以外無法推知的具體細節
 """.strip()
 
     system_instruction = "你是嚴謹的學校活動申請書編輯，只寫具體、可提交的繁體中文行政文字。"
@@ -691,7 +709,10 @@ def generate_application_purpose_with_preview(
             prompt=prompt,
         )
     except RuntimeError as exc:
-        fallback_text = fallback_application_purpose(activity_name=activity_name)
+        fallback_text = fallback_application_purpose(
+            activity_name=activity_name,
+            activity_progress=activity_progress,
+        )
         return ai_preview(
             final_text=fallback_text,
             status=f"AI 呼叫失敗，已使用本機草稿。{exc}",
@@ -699,7 +720,10 @@ def generate_application_purpose_with_preview(
 
     generated_text = clean_generated_text(str(generated_result["text"]))
     if not generated_text.endswith(("。", "！", "？")) or len(generated_text) < 40:
-        fallback_text = fallback_application_purpose(activity_name=activity_name)
+        fallback_text = fallback_application_purpose(
+            activity_name=activity_name,
+            activity_progress=activity_progress,
+        )
         return ai_preview(
             final_text=fallback_text,
             raw_text=generated_text,
@@ -757,7 +781,7 @@ def generate_application_progress_with_preview(
 
 輸出要求：
 - 只輸出流程內容，不要加標題、解釋或條列符號。
-- 使用「19:35-19:45 破冰活動 / 19:45-20:00 ...」這種格式。
+- 一行一個流程，使用「19:35-19:45 破冰活動」這種格式。
 - 時間需接在 19:30-19:35 開場之後，並在 20:50 前結束，因為模板後面已保留 20:50-21:00 小組時間。
 - 流程需合理、可執行，不要排太多項目。
 - 必須包含破冰活動、介紹茶、喝茶。
@@ -786,7 +810,7 @@ def generate_application_progress_with_preview(
             status=f"AI 呼叫失敗，已使用本機草稿。{exc}",
         )
 
-    generated_text = clean_generated_text(str(generated_result["text"]))
+    generated_text = str(generated_result["text"]).strip()
     required_terms = ("破冰", "介紹", "茶")
     if not generated_text or any(term not in generated_text for term in required_terms):
         fallback_text = fallback_application_progress(
