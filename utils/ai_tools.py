@@ -194,17 +194,45 @@ def generate_ai_tool_content(
 
 
 def fallback_site_usage_guide() -> str:
-    return """
-第一次使用可以先從「幹部管理」建立幹部名單，讓成果書、行事曆與活動申請書可以直接選擇活動負責人。
+    return "先到「幹部管理」建立名單，再用「行事曆」建立活動；成果書、活動申請書與 AI 工具都可以接著使用這些資料。"
 
-接著到「行事曆」新增社課、會議或活動，填入活動名稱、日期、活動負責人、地點與備註。之後在成果書或活動申請書頁面選取行事曆活動，就能自動帶入部分資料，減少重複填寫。
 
-辦完活動後，到「成果書生成」上傳問卷資料與活動照片，確認活動資料後可用 AI 生成活動內容概述與指導老師評語，再下載 Word 成果書。
-
-活動前需要送申請時，到「活動申請書生成」選取或輸入活動資料，可用 AI 產生活動進行與活動宗旨；產生前請檢查流程時間、點心 DIY 與活動內容是否合理。
-
-臨時需要公告、社群貼文、會議紀錄或行政訊息時，可以使用「AI工具」快速產生草稿，再依實際情況修改。幹部常用網站與私密上傳連結則放在「常用連結」。
+SITE_FEATURES = """
+平台頁面：
+- 成果書生成：從行事曆帶入活動資料，上傳問卷與照片，產生 Word 成果書，可用 AI 生成活動內容概述與指導老師評語。
+- 問卷分析：匯入問卷資料並檢視分析結果。
+- AI工具：產生活動公告、社群貼文、成果摘要、會議紀錄整理與行政訊息。
+- 幹部管理：建立與排序幹部名單，職位包含社長、副社長、總務、攝錄、點心、文書。
+- 行事曆：用月曆管理社課、會議與活動，填寫日期、活動名稱、活動負責人、地點與備註。
+- 活動申請書生成：從行事曆與幹部名單帶入資料，可用 AI 產生活動進行與活動宗旨，下載 Word 申請書。
+- 常用連結：整理幹部常用網站，私密雲端上傳網址從 Secrets 載入。
 """.strip()
+
+
+def fallback_site_help_answer(question: str) -> str:
+    normalized = question.strip()
+    if not normalized:
+        return "請先輸入想問的操作，例如「我要做成果書要去哪裡？」或「我要新增活動負責人怎麼做？」"
+
+    if any(keyword in normalized for keyword in ("成果", "成果書", "照片", "問卷")):
+        return "請前往「成果書生成」。建議先在「行事曆」建立活動並在「幹部管理」建立負責人，進入成果書頁後選取行事曆活動、上傳問卷與照片，再產生 Word 檔。"
+
+    if any(keyword in normalized for keyword in ("申請", "活動宗旨", "活動進行", "計畫書")):
+        return "請前往「活動申請書生成」。可以先從行事曆帶入活動資料，再填副負責人、電話、茶品與點心；活動進行和活動宗旨可用 AI 產生，送出前請檢查流程是否合理。"
+
+    if any(keyword in normalized for keyword in ("幹部", "負責人", "職位", "社員")):
+        return "請前往「幹部管理」。在那裡新增幹部姓名、學號與職位，也可以調整順序；成果書和行事曆選活動負責人時會使用這份名單。"
+
+    if any(keyword in normalized for keyword in ("行事曆", "活動", "日期", "月曆")):
+        return "請前往「行事曆」。新增活動時填日期、活動名稱、活動負責人、地點與備註，之後成果書和活動申請書就能直接選取並帶入資料。"
+
+    if any(keyword in normalized for keyword in ("公告", "貼文", "會議", "行政", "文案")):
+        return "請前往「AI工具」。選擇活動公告、社群貼文、成果摘要、會議紀錄整理或行政訊息，輸入素材後產生草稿，再依實際情況修改。"
+
+    if any(keyword in normalized for keyword in ("連結", "網址", "上傳", "雲端")):
+        return "請前往「常用連結」。公開網站可直接新增到頁面；不能放在 GitHub 的雲端上傳網址要放在 Streamlit Secrets，會顯示在私密連結區。"
+
+    return "可以先從首頁的功能連結進入相關頁面。若是要建立基本資料，先用「幹部管理」與「行事曆」；若要產生文件，使用「成果書生成」或「活動申請書生成」；若只是要寫文字草稿，使用「AI工具」。"
 
 
 def generate_site_usage_guide(
@@ -225,21 +253,14 @@ def generate_site_usage_guide(
             "debug": {},
         }
 
-    prompt = """
-請替茶道社幹部平台產生首頁使用說明，放在登入後的首頁給幹部閱讀。
+    prompt = f"""
+請替茶道社幹部平台產生首頁簡短使用說明，放在登入後首頁的小型說明區塊。
 
-平台頁面與用途：
-- 幹部管理：建立幹部名單，職位包含社長、副社長、總務、攝錄、點心、文書，活動負責人只需要姓名。
-- 行事曆：以月曆管理活動，可填日期、活動名稱、活動負責人、地點與備註。
-- 成果書生成：可從行事曆帶入活動資料，上傳問卷與照片，使用 AI 生成活動內容概述與指導老師評語，最後下載 Word。
-- 活動申請書生成：可從行事曆與幹部名單帶入資料，使用 AI 產生活動進行與活動宗旨，並提醒使用者檢查流程是否合理。
-- 問卷分析：匯入問卷資料並檢視分析結果。
-- AI工具：產生活動公告、社群貼文、成果摘要、會議紀錄整理與行政訊息。
-- 常用連結：整理幹部常用網站，私密雲端上傳網址由 Streamlit Secrets 載入，不寫入 GitHub。
+{SITE_FEATURES}
 
 要求：
 - 使用繁體中文。
-- 用 5 段以內說明，新幹部看完要知道先做什麼、後做什麼。
+- 只寫 2 到 3 句，不要超過 120 字。
 - 語氣清楚、親切、像幹部交接文件，不要像廣告。
 - 不要提到程式碼、repo、GitHub token 或內部實作。
 - 不要使用條列符號，直接用自然段落。
@@ -266,6 +287,69 @@ def generate_site_usage_guide(
     return {
         "text": str(result.get("text", "")).strip() or fallback_text,
         "status": f"使用 {result_source(result)} 產生。",
+        "provider": result.get("provider", "AI"),
+        "model": result.get("model", ""),
+        "debug": result.get("debug", {}),
+    }
+
+
+def generate_site_help_answer(
+    *,
+    gemini_api_key: str | None,
+    gemini_model: str,
+    groq_api_key: str | None,
+    groq_model: str,
+    question: str,
+) -> dict[str, object]:
+    fallback_text = fallback_site_help_answer(question)
+
+    if not gemini_api_key and not groq_api_key:
+        return {
+            "text": fallback_text,
+            "status": "未設定 API key，已使用本機回答。",
+            "provider": "本機回答",
+            "model": "",
+            "debug": {},
+        }
+
+    prompt = f"""
+使用者正在茶道社幹部平台首頁詢問操作方式，請根據平台功能回答。
+
+{SITE_FEATURES}
+
+使用者問題：
+{question}
+
+回答要求：
+- 使用繁體中文。
+- 回答要短，3 到 5 句內。
+- 明確告訴使用者應該前往哪個頁面。
+- 若需要前置步驟，請用「先...再...」說明。
+- 不要提到程式碼、repo、API key 或內部實作。
+- 不要捏造平台不存在的功能。
+""".strip()
+
+    try:
+        result = generate_ai_result(
+            gemini_api_key=gemini_api_key,
+            gemini_model=gemini_model,
+            groq_api_key=groq_api_key,
+            groq_model=groq_model,
+            system_instruction="你是茶道社幹部平台的操作客服，只回答此平台實際有的功能與頁面。",
+            prompt=prompt,
+        )
+    except RuntimeError as exc:
+        return {
+            "text": fallback_text,
+            "status": f"AI 呼叫失敗，已使用本機回答。{exc}",
+            "provider": "本機回答",
+            "model": "",
+            "debug": {},
+        }
+
+    return {
+        "text": str(result.get("text", "")).strip() or fallback_text,
+        "status": f"使用 {result_source(result)} 回答。",
         "provider": result.get("provider", "AI"),
         "model": result.get("model", ""),
         "debug": result.get("debug", {}),
