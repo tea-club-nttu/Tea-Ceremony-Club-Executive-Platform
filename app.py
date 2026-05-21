@@ -1,6 +1,18 @@
 import streamlit as st
 
 from utils.auth import init_auth_state, logout_button
+from utils.ai_tools import (
+    default_groq_model,
+    fallback_site_usage_guide,
+    generate_site_usage_guide,
+)
+
+
+def secret_value(name: str, default: str = "") -> str:
+    try:
+        return str(st.secrets.get(name, default)).strip()
+    except Exception:
+        return default
 
 
 st.set_page_config(
@@ -39,6 +51,41 @@ if st.session_state["authenticated"]:
         st.info("幹部管理\n\n維護幹部資料與職位分工。")
         st.info("行事曆\n\n記錄社課、會議與活動時程。")
         st.info("常用連結\n\n整理幹部常用網站並快速跳轉。")
+
+    st.subheader("AI 使用說明")
+    st.caption("登入後可在這裡查看平台操作指引，需要時再用 AI 更新成更自然的說明。")
+
+    if "site_usage_guide_result" not in st.session_state:
+        st.session_state["site_usage_guide_result"] = {
+            "text": fallback_site_usage_guide(),
+            "status": "目前顯示本機說明，可按下方按鈕用 AI 更新。",
+            "provider": "本機說明",
+            "model": "",
+            "debug": {},
+        }
+
+    guide_result = st.session_state["site_usage_guide_result"]
+    st.info(str(guide_result.get("status", "")))
+    st.markdown(str(guide_result.get("text", "")))
+
+    guide_col1, guide_col2 = st.columns([1, 4])
+    with guide_col1:
+        if st.button("用 AI 更新說明", type="primary"):
+            with st.spinner("正在用 AI 產生網站使用說明..."):
+                st.session_state["site_usage_guide_result"] = generate_site_usage_guide(
+                    gemini_api_key=secret_value("GEMINI_API_KEY"),
+                    gemini_model=secret_value("GEMINI_MODEL", "gemini-2.5-flash"),
+                    groq_api_key=secret_value("GROQ_API_KEY"),
+                    groq_model=secret_value("GROQ_MODEL", default_groq_model()),
+                )
+            st.rerun()
+    with guide_col2:
+        provider = guide_result.get("provider")
+        model = guide_result.get("model")
+        if provider and provider != "本機說明":
+            st.caption(f"調用模型：{provider} / {model}")
+        else:
+            st.caption("AI 說明會根據目前平台功能產生，產出後仍可依幹部實際流程調整。")
 else:
     st.subheader("登入")
     password = st.text_input("請輸入平台密碼", type="password")

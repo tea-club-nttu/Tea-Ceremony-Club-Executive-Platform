@@ -193,5 +193,84 @@ def generate_ai_tool_content(
     }
 
 
+def fallback_site_usage_guide() -> str:
+    return """
+第一次使用可以先從「幹部管理」建立幹部名單，讓成果書、行事曆與活動申請書可以直接選擇活動負責人。
+
+接著到「行事曆」新增社課、會議或活動，填入活動名稱、日期、活動負責人、地點與備註。之後在成果書或活動申請書頁面選取行事曆活動，就能自動帶入部分資料，減少重複填寫。
+
+辦完活動後，到「成果書生成」上傳問卷資料與活動照片，確認活動資料後可用 AI 生成活動內容概述與指導老師評語，再下載 Word 成果書。
+
+活動前需要送申請時，到「活動申請書生成」選取或輸入活動資料，可用 AI 產生活動進行與活動宗旨；產生前請檢查流程時間、點心 DIY 與活動內容是否合理。
+
+臨時需要公告、社群貼文、會議紀錄或行政訊息時，可以使用「AI工具」快速產生草稿，再依實際情況修改。幹部常用網站與私密上傳連結則放在「常用連結」。
+""".strip()
+
+
+def generate_site_usage_guide(
+    *,
+    gemini_api_key: str | None,
+    gemini_model: str,
+    groq_api_key: str | None,
+    groq_model: str,
+) -> dict[str, object]:
+    fallback_text = fallback_site_usage_guide()
+
+    if not gemini_api_key and not groq_api_key:
+        return {
+            "text": fallback_text,
+            "status": "未設定 API key，已使用本機說明。",
+            "provider": "本機說明",
+            "model": "",
+            "debug": {},
+        }
+
+    prompt = """
+請替茶道社幹部平台產生首頁使用說明，放在登入後的首頁給幹部閱讀。
+
+平台頁面與用途：
+- 幹部管理：建立幹部名單，職位包含社長、副社長、總務、攝錄、點心、文書，活動負責人只需要姓名。
+- 行事曆：以月曆管理活動，可填日期、活動名稱、活動負責人、地點與備註。
+- 成果書生成：可從行事曆帶入活動資料，上傳問卷與照片，使用 AI 生成活動內容概述與指導老師評語，最後下載 Word。
+- 活動申請書生成：可從行事曆與幹部名單帶入資料，使用 AI 產生活動進行與活動宗旨，並提醒使用者檢查流程是否合理。
+- 問卷分析：匯入問卷資料並檢視分析結果。
+- AI工具：產生活動公告、社群貼文、成果摘要、會議紀錄整理與行政訊息。
+- 常用連結：整理幹部常用網站，私密雲端上傳網址由 Streamlit Secrets 載入，不寫入 GitHub。
+
+要求：
+- 使用繁體中文。
+- 用 5 段以內說明，新幹部看完要知道先做什麼、後做什麼。
+- 語氣清楚、親切、像幹部交接文件，不要像廣告。
+- 不要提到程式碼、repo、GitHub token 或內部實作。
+- 不要使用條列符號，直接用自然段落。
+""".strip()
+
+    try:
+        result = generate_ai_result(
+            gemini_api_key=gemini_api_key,
+            gemini_model=gemini_model,
+            groq_api_key=groq_api_key,
+            groq_model=groq_model,
+            system_instruction="你是茶道社幹部平台的使用說明編輯，專門寫清楚、可執行的繁體中文操作指引。",
+            prompt=prompt,
+        )
+    except RuntimeError as exc:
+        return {
+            "text": fallback_text,
+            "status": f"AI 呼叫失敗，已使用本機說明。{exc}",
+            "provider": "本機說明",
+            "model": "",
+            "debug": {},
+        }
+
+    return {
+        "text": str(result.get("text", "")).strip() or fallback_text,
+        "status": f"使用 {result_source(result)} 產生。",
+        "provider": result.get("provider", "AI"),
+        "model": result.get("model", ""),
+        "debug": result.get("debug", {}),
+    }
+
+
 def default_groq_model() -> str:
     return DEFAULT_GROQ_MODEL
