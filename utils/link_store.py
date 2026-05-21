@@ -2,15 +2,9 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Mapping
 from pathlib import Path
 
 from utils.github_json_store import github_token, load_json, save_json
-
-try:
-    import streamlit as st
-except Exception:
-    st = None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -67,16 +61,22 @@ def config_value(name: str, default: object = "") -> object:
     if env_value:
         return env_value
 
-    if st is None:
-        return default
-
     try:
+        import streamlit as st
+
         return st.secrets.get(name, default)
     except Exception:
         return default
 
 
-def link_from_config(item: Mapping[str, object]) -> dict[str, str] | None:
+def is_mapping_like(value: object) -> bool:
+    return hasattr(value, "get")
+
+
+def link_from_config(item: object) -> dict[str, str] | None:
+    if not is_mapping_like(item):
+        return None
+
     name = str(item.get("name") or item.get("名稱") or "").strip()
     url = normalize_url(str(item.get("url") or item.get("網址") or ""))
     category = str(item.get("category") or item.get("分類") or "私密連結").strip()
@@ -110,15 +110,14 @@ def load_private_links() -> list[dict[str, str]]:
         )
 
     configured_links = config_value("PRIVATE_LINKS", [])
-    if isinstance(configured_links, Mapping):
+    if is_mapping_like(configured_links):
         configured_links = [configured_links]
 
     if isinstance(configured_links, (list, tuple)):
         for item in configured_links:
-            if isinstance(item, Mapping):
-                link = link_from_config(item)
-                if link:
-                    links.append(link)
+            link = link_from_config(item)
+            if link:
+                links.append(link)
 
     private_links_json = str(config_value("PRIVATE_LINKS_JSON", "")).strip()
     if private_links_json:
@@ -127,15 +126,14 @@ def load_private_links() -> list[dict[str, str]]:
         except json.JSONDecodeError:
             parsed_links = []
 
-        if isinstance(parsed_links, Mapping):
+        if is_mapping_like(parsed_links):
             parsed_links = [parsed_links]
 
         if isinstance(parsed_links, list):
             for item in parsed_links:
-                if isinstance(item, Mapping):
-                    link = link_from_config(item)
-                    if link:
-                        links.append(link)
+                link = link_from_config(item)
+                if link:
+                    links.append(link)
 
     return normalize_links(links)
 

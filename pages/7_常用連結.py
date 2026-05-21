@@ -2,14 +2,11 @@ import streamlit as st
 
 from utils.auth import require_login, logout_button
 from utils.github_json_store import storage_label
-from utils.link_store import (
-    add_link,
-    delete_link,
-    load_links,
-    load_private_links,
-    move_link,
-    normalize_url,
-)
+try:
+    from utils import link_store
+except Exception as exc:
+    link_store = None
+    link_store_import_error = exc
 
 
 st.set_page_config(
@@ -28,7 +25,17 @@ st.title("常用連結")
 st.caption("整理幹部常用網站，點選後可直接跳轉。")
 st.caption(f"儲存位置：{storage_label()}")
 
-private_links = load_private_links()
+if link_store is None:
+    st.error("常用連結資料模組讀取失敗，請稍後重新整理頁面。")
+    st.caption(str(link_store_import_error))
+    st.stop()
+
+try:
+    private_links = link_store.load_private_links()
+except Exception:
+    private_links = []
+    st.warning("私密連結讀取失敗，公開常用連結仍可使用。")
+
 if private_links:
     st.subheader("私密連結")
     st.caption("由 Streamlit Secrets 載入，不會寫入 GitHub。")
@@ -61,13 +68,13 @@ with st.expander("新增連結", expanded=False):
         link_note = st.text_input("備註")
 
     if st.button("新增連結", type="primary"):
-        normalized_url = normalize_url(link_url)
+        normalized_url = link_store.normalize_url(link_url)
         if not link_name.strip():
             st.error("請輸入連結名稱。")
         elif not normalized_url.startswith(("http://", "https://")):
             st.error("請輸入有效網址。")
         else:
-            add_link(
+            link_store.add_link(
                 name=link_name,
                 url=normalized_url,
                 category=link_category,
@@ -76,7 +83,7 @@ with st.expander("新增連結", expanded=False):
             st.success("已新增連結。")
             st.rerun()
 
-links = load_links()
+links = link_store.load_links()
 
 if not links:
     st.info("目前尚未新增常用連結。")
@@ -106,7 +113,7 @@ else:
                 move_col1, move_col2, delete_col = st.columns(3)
                 with move_col1:
                     if st.button("上移", key=f"link_up_{index}", disabled=index == 0):
-                        move_link(index, -1)
+                        link_store.move_link(index, -1)
                         st.rerun()
                 with move_col2:
                     if st.button(
@@ -114,9 +121,9 @@ else:
                         key=f"link_down_{index}",
                         disabled=index == len(links) - 1,
                     ):
-                        move_link(index, 1)
+                        link_store.move_link(index, 1)
                         st.rerun()
                 with delete_col:
                     if st.button("刪除", key=f"link_delete_{index}"):
-                        delete_link(index)
+                        link_store.delete_link(index)
                         st.rerun()
