@@ -19,6 +19,7 @@ streamlit run app.py
 - `pages/4_幹部管理.py`: 幹部名單管理，提供成果書與行事曆的活動負責人選項。
 - `pages/5_行事曆.py`: 月曆式活動管理，可供成果書帶入活動資料。
 - `pages/6_活動申請書生成.py`: 活動申請書生成，可從行事曆與幹部名單帶入活動資料。
+- `pages/7_常用連結.py`: 幹部常用網站入口，可新增、刪除、排序與直接跳轉。
 
 ## Current Behavior
 
@@ -28,6 +29,7 @@ streamlit run app.py
 - 行事曆活動欄位使用 `活動負責人`，不使用時間欄位。
 - 從行事曆選取活動時，會自動帶入活動名稱、日期、地點與活動負責人。
 - 活動申請書使用 `assets/活動申請書模板.docx`，只替換 `{{...}}` 標註欄位，不調整未標註內容；活動進行可由活動名稱透過 AI 生成，一行一個流程，並可勾選是否包含破冰活動、點心 DIY 與健康聊齋；活動宗旨可再依活動進行生成。
+- 常用連結預設包含課外組空間借用頁面，資料儲存在 `data/useful_links.json`。
 - 幹部職位固定為：社長、副社長、總務、攝錄、點心、文書。
 - 幹部列表可刪除、上移、下移、移到最上面。
 - AI 生成會先使用 Gemini；若 Gemini 失敗或額度用完，會使用 Groq 作為文字備用模型。
@@ -37,6 +39,7 @@ streamlit run app.py
 
 - `data/officers.json`: 幹部名單。
 - `data/calendar_events.json`: 行事曆活動。
+- `data/useful_links.json`: 常用連結。
 - 若設定 `GITHUB_TOKEN`，資料會優先永久寫入 GitHub repo。
 - 未設定 `GITHUB_TOKEN` 時，改用本機檔案儲存。
 
