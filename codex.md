@@ -35,7 +35,7 @@ streamlit run app.py
 - 私密連結從 `OFFICER_UPLOAD_URL` / `PRIVATE_LINKS` 讀取，不寫入 GitHub，適合幹部雲端資料上傳網址。
 - 幹部職位固定為：社長、副社長、總務、攝錄、點心、文書。
 - 幹部列表可刪除、上移、下移、移到最上面。
-- AI 生成會先使用 Gemini；若 Gemini 失敗或額度用完，會使用 Groq 作為文字備用模型。
+- AI 生成會先使用 Gemini；若 Gemini 失敗或額度用完，會使用 Groq 作為文字備用模型；若 Groq 也失敗，會使用 Hugging Face 作為第三順位文字備援。
 - AI 正常產出時顯示「AI 順利產出」與實際調用模型；若有修復或 fallback，才顯示預覽內容。
 
 ## Persistent Data
@@ -58,6 +58,9 @@ GEMINI_API_KEY = "Gemini API key"
 GEMINI_MODEL = "gemini-2.5-flash"
 GROQ_API_KEY = "Groq API key"
 GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+HF_API_KEY = "Hugging Face token"
+HF_MODEL = "openai/gpt-oss-120b:fastest"
+HF_VISION_MODEL = "CohereLabs/aya-vision-32b:cohere"
 GITHUB_TOKEN = "GitHub fine-grained token"
 OFFICER_UPLOAD_URL = "幹部資料上傳網址"
 OFFICER_UPLOAD_NAME = "幹部資料上傳"
@@ -68,4 +71,6 @@ OFFICER_UPLOAD_NAME = "幹部資料上傳"
 `GEMINI_MODEL` 目前預設為 `gemini-2.5-flash`。Gemini calls in `utils/teacher_comment.py` disable thinking for short report text and request enough output tokens to avoid truncated responses.
 
 `GROQ_MODEL` 目前預設為 `meta-llama/llama-4-scout-17b-16e-instruct`。Groq fallback uses the OpenAI-compatible chat completions endpoint and is text-only, so activity overview fallback relies on photo descriptions rather than image bytes.
+
+`HF_MODEL` 目前預設為 `openai/gpt-oss-120b:fastest`，透過 Hugging Face Inference Providers OpenAI-compatible chat completions endpoint 作為文字備援。`HF_VISION_MODEL` 目前預設為 `CohereLabs/aya-vision-32b:cohere`，用在成果書照片讀圖備援。
 

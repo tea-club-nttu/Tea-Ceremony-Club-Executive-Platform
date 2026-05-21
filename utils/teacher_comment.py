@@ -6,6 +6,8 @@ from urllib import error, parse, request
 
 
 DEFAULT_GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+DEFAULT_HF_MODEL = "openai/gpt-oss-120b:fastest"
+DEFAULT_HF_VISION_MODEL = "CohereLabs/aya-vision-32b:cohere"
 
 
 def generate_gemini_text(
@@ -213,6 +215,100 @@ def generate_groq_result(
     }
 
 
+def huggingface_debug_info(data: dict, text: str) -> dict[str, object]:
+    usage = data.get("usage", {})
+    choices = data.get("choices", [])
+    finish_reasons = [
+        choice.get("finish_reason")
+        for choice in choices
+        if choice.get("finish_reason")
+    ]
+
+    return {
+        "choice_count": len(choices),
+        "finish_reasons": finish_reasons,
+        "text_length": len(text),
+        "prompt_tokens": usage.get("prompt_tokens"),
+        "completion_tokens": usage.get("completion_tokens"),
+        "total_tokens": usage.get("total_tokens"),
+    }
+
+
+def generate_huggingface_result(
+    *,
+    api_key: str,
+    model: str,
+    system_instruction: str,
+    prompt: str,
+    images: list[object] | None = None,
+) -> dict[str, object]:
+    message_content: str | list[dict[str, object]] = prompt
+    image_parts = []
+    for image in images or []:
+        if image is None:
+            continue
+
+        mime_type = getattr(image, "type", None) or "image/png"
+        image_data = base64.b64encode(image.getvalue()).decode("ascii")
+        image_parts.append(
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime_type};base64,{image_data}",
+                },
+            }
+        )
+
+    if image_parts:
+        message_content = [{"type": "text", "text": prompt}, *image_parts]
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": message_content},
+        ],
+        "max_tokens": 2048,
+        "temperature": 0.4,
+        "top_p": 0.8,
+        "stream": False,
+    }
+    req = request.Request(
+        "https://router.huggingface.co/v1/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json; charset=utf-8",
+            "User-Agent": "tea-club-platform/1.0",
+            "Accept": "application/json",
+        },
+    )
+
+    try:
+        with request.urlopen(req, timeout=45) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except (OSError, error.HTTPError, json.JSONDecodeError) as exc:
+        raise RuntimeError("Hugging Face API 呼叫失敗，請確認 HF_API_KEY 與 HF_MODEL。") from exc
+
+    texts = []
+    for choice in data.get("choices", []):
+        content = choice.get("message", {}).get("content")
+        if content:
+            texts.append(content)
+
+    generated_text = "\n".join(texts).strip()
+    if not generated_text:
+        raise RuntimeError("Hugging Face API 未回傳文字內容。")
+
+    return {
+        "text": generated_text,
+        "debug": huggingface_debug_info(data, generated_text),
+        "provider": "Hugging Face",
+        "model": str(data.get("model") or model),
+    }
+
+
 def generate_ai_result(
     *,
     gemini_api_key: str | None,
@@ -222,8 +318,12 @@ def generate_ai_result(
     system_instruction: str,
     prompt: str,
     images: list[object] | None = None,
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
+    hf_vision_model: str = DEFAULT_HF_VISION_MODEL,
 ) -> dict[str, object]:
     last_error = ""
+    tried_huggingface = False
 
     if gemini_api_key:
         try:
@@ -237,6 +337,26 @@ def generate_ai_result(
         except RuntimeError as exc:
             last_error = str(exc)
 
+    has_images = any(image is not None for image in images or [])
+    if has_images and hf_api_key:
+        tried_huggingface = True
+        try:
+            result = generate_huggingface_result(
+                api_key=hf_api_key,
+                model=hf_vision_model,
+                system_instruction=system_instruction,
+                prompt=prompt,
+                images=images,
+            )
+            if last_error:
+                result["debug"]["fallback_from"] = last_error
+            return result
+        except RuntimeError as exc:
+            if last_error:
+                last_error = f"{last_error}；{exc}"
+            else:
+                last_error = str(exc)
+
     if groq_api_key:
         try:
             result = generate_groq_result(
@@ -244,6 +364,24 @@ def generate_ai_result(
                 model=groq_model,
                 system_instruction=system_instruction,
                 prompt=prompt,
+            )
+            if last_error:
+                result["debug"]["fallback_from"] = last_error
+            return result
+        except RuntimeError as exc:
+            if last_error:
+                last_error = f"{last_error}；{exc}"
+            else:
+                last_error = str(exc)
+
+    if hf_api_key and not tried_huggingface:
+        try:
+            result = generate_huggingface_result(
+                api_key=hf_api_key,
+                model=hf_model,
+                system_instruction=system_instruction,
+                prompt=prompt,
+                images=images,
             )
             if last_error:
                 result["debug"]["fallback_from"] = last_error
@@ -446,12 +584,18 @@ def repair_generated_text(
     original_prompt: str,
     weak_text: str,
     images: list[object] | None = None,
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
+    hf_vision_model: str = DEFAULT_HF_VISION_MODEL,
 ) -> str:
     return repair_generated_text_with_preview(
         api_key=api_key,
         model=model,
         groq_api_key=groq_api_key,
         groq_model=groq_model,
+        hf_api_key=hf_api_key,
+        hf_model=hf_model,
+        hf_vision_model=hf_vision_model,
         system_instruction=system_instruction,
         original_prompt=original_prompt,
         weak_text=weak_text,
@@ -469,6 +613,9 @@ def repair_generated_text_with_preview(
     original_prompt: str,
     weak_text: str,
     images: list[object] | None = None,
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
+    hf_vision_model: str = DEFAULT_HF_VISION_MODEL,
 ) -> dict[str, object]:
     repair_prompt = f"""
 以下文字太短、太空泛或沒有完整結尾，請根據原始資料重寫成更好的成果書文字。
@@ -492,6 +639,9 @@ def repair_generated_text_with_preview(
         gemini_model=model,
         groq_api_key=groq_api_key,
         groq_model=groq_model,
+        hf_api_key=hf_api_key,
+        hf_model=hf_model,
+        hf_vision_model=hf_vision_model,
         system_instruction=system_instruction,
         prompt=repair_prompt,
         images=images,
@@ -530,12 +680,16 @@ def generate_teacher_comment(
     activity_name: str,
     activity_review: str,
     photo_descriptions: list[str],
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
 ) -> str:
     return generate_teacher_comment_with_preview(
         api_key=api_key,
         model=model,
         groq_api_key=groq_api_key,
         groq_model=groq_model,
+        hf_api_key=hf_api_key,
+        hf_model=hf_model,
         activity_name=activity_name,
         activity_review=activity_review,
         photo_descriptions=photo_descriptions,
@@ -551,8 +705,10 @@ def generate_teacher_comment_with_preview(
     activity_name: str,
     activity_review: str,
     photo_descriptions: list[str],
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
 ) -> dict[str, object]:
-    if not api_key and not groq_api_key:
+    if not api_key and not groq_api_key and not hf_api_key:
         fallback_text = fallback_teacher_comment(
             activity_name=activity_name,
             activity_review=activity_review,
@@ -606,6 +762,8 @@ def generate_teacher_comment_with_preview(
             gemini_model=model,
             groq_api_key=groq_api_key,
             groq_model=groq_model,
+            hf_api_key=hf_api_key,
+            hf_model=hf_model,
             system_instruction=system_instruction,
             prompt=prompt,
         )
@@ -632,6 +790,8 @@ def generate_teacher_comment_with_preview(
                 model=model,
                 groq_api_key=groq_api_key,
                 groq_model=groq_model,
+                hf_api_key=hf_api_key,
+                hf_model=hf_model,
                 system_instruction=system_instruction,
                 original_prompt=prompt,
                 weak_text=generated_text,
@@ -701,8 +861,10 @@ def generate_application_purpose_with_preview(
     groq_model: str = DEFAULT_GROQ_MODEL,
     activity_name: str,
     activity_progress: str = "",
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
 ) -> dict[str, object]:
-    if not api_key and not groq_api_key:
+    if not api_key and not groq_api_key and not hf_api_key:
         fallback_text = fallback_application_purpose(
             activity_name=activity_name,
             activity_progress=activity_progress,
@@ -735,6 +897,8 @@ def generate_application_purpose_with_preview(
             gemini_model=model,
             groq_api_key=groq_api_key,
             groq_model=groq_model,
+            hf_api_key=hf_api_key,
+            hf_model=hf_model,
             system_instruction=system_instruction,
             prompt=prompt,
         )
@@ -785,8 +949,10 @@ def generate_application_progress_with_preview(
     include_icebreaker: bool = True,
     include_snack_diy: bool = False,
     include_health_chat: bool = False,
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
 ) -> dict[str, object]:
-    if not api_key and not groq_api_key:
+    if not api_key and not groq_api_key and not hf_api_key:
         fallback_text = fallback_application_progress(
             activity_name=activity_name,
             tea_topic=tea_topic,
@@ -837,6 +1003,8 @@ def generate_application_progress_with_preview(
             gemini_model=model,
             groq_api_key=groq_api_key,
             groq_model=groq_model,
+            hf_api_key=hf_api_key,
+            hf_model=hf_model,
             system_instruction=system_instruction,
             prompt=prompt,
         )
@@ -899,12 +1067,18 @@ def generate_activity_overview(
     activity_name: str,
     photo_descriptions: list[str],
     photos: list[object] | None = None,
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
+    hf_vision_model: str = DEFAULT_HF_VISION_MODEL,
 ) -> str:
     return generate_activity_overview_with_preview(
         api_key=api_key,
         model=model,
         groq_api_key=groq_api_key,
         groq_model=groq_model,
+        hf_api_key=hf_api_key,
+        hf_model=hf_model,
+        hf_vision_model=hf_vision_model,
         activity_name=activity_name,
         photo_descriptions=photo_descriptions,
         photos=photos,
@@ -920,8 +1094,11 @@ def generate_activity_overview_with_preview(
     activity_name: str,
     photo_descriptions: list[str],
     photos: list[object] | None = None,
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
+    hf_vision_model: str = DEFAULT_HF_VISION_MODEL,
 ) -> dict[str, object]:
-    if not api_key and not groq_api_key:
+    if not api_key and not groq_api_key and not hf_api_key:
         fallback_text = fallback_activity_overview(
             activity_name=activity_name,
             photo_descriptions=photo_descriptions,
@@ -974,6 +1151,9 @@ def generate_activity_overview_with_preview(
             gemini_model=model,
             groq_api_key=groq_api_key,
             groq_model=groq_model,
+            hf_api_key=hf_api_key,
+            hf_model=hf_model,
+            hf_vision_model=hf_vision_model,
             system_instruction=system_instruction,
             prompt=prompt,
             images=photos,
@@ -1001,6 +1181,9 @@ def generate_activity_overview_with_preview(
                 model=model,
                 groq_api_key=groq_api_key,
                 groq_model=groq_model,
+                hf_api_key=hf_api_key,
+                hf_model=hf_model,
+                hf_vision_model=hf_vision_model,
                 system_instruction=system_instruction,
                 original_prompt=prompt,
                 weak_text=generated_text,

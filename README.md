@@ -54,6 +54,9 @@ GEMINI_API_KEY = "你的 Gemini API key"
 GEMINI_MODEL = "gemini-2.5-flash"
 GROQ_API_KEY = "你的 Groq API key"
 GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+HF_API_KEY = "你的 Hugging Face token"
+HF_MODEL = "openai/gpt-oss-120b:fastest"
+HF_VISION_MODEL = "CohereLabs/aya-vision-32b:cohere"
 GITHUB_TOKEN = "你的 GitHub fine-grained token"
 OFFICER_UPLOAD_URL = "你的幹部資料上傳網址"
 OFFICER_UPLOAD_NAME = "幹部資料上傳"
@@ -80,14 +83,14 @@ streamlit run app.py
 - 填寫日期使用月曆選擇器，預設抓台灣時區日期，輸出格式為 `XXX 年 X 月 X 日`。
 - 可由照片與照片說明使用 Gemini 生成活動內容概述。
 - 可由活動檢討與照片說明使用 Gemini 生成指導老師評語。
-- Gemini 失敗或額度用完時，可用 Groq 作為文字備用模型；頁面會顯示實際調用的 provider 與 model。
+- Gemini 失敗或額度用完時，可用 Groq 作為文字備用模型；若需要讀照片且 Gemini 不可用，會嘗試 Hugging Face Vision，其他文字任務則可再嘗試 Hugging Face 文字備援。頁面會顯示實際調用的 provider 與 model。
 - 若 AI 輸出正常，頁面只顯示 AI 順利產出；若使用修復或模板，會顯示預覽供檢查。
 
-未設定 `GEMINI_API_KEY` / `GROQ_API_KEY` 或所有 AI 呼叫失敗時，會使用本機規則產生可編輯草稿。
+未設定 `GEMINI_API_KEY` / `GROQ_API_KEY` / `HF_API_KEY` 或所有 AI 呼叫失敗時，會使用本機規則產生可編輯草稿。
 
 ## AI 工具
 
-`AI工具` 頁面可從行事曆帶入活動資料，並產生活動公告、社群貼文、成果摘要、會議紀錄整理與行政訊息。頁面會顯示實際調用的模型；未設定 AI key 或 AI 呼叫失敗時，會改用本機草稿。
+`AI工具` 頁面可從行事曆帶入活動資料，並產生活動公告、社群貼文、成果摘要、會議紀錄整理與行政訊息。頁面會顯示實際調用的模型；未設定 AI key 或 Gemini、Groq、Hugging Face 都呼叫失敗時，會改用本機草稿。
 
 ## 幹部管理
 

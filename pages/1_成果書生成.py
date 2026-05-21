@@ -13,6 +13,8 @@ from utils.officer_store import load_officers
 from utils.report_filename import achievement_report_file_name
 from utils.teacher_comment import (
     DEFAULT_GROQ_MODEL,
+    DEFAULT_HF_MODEL,
+    DEFAULT_HF_VISION_MODEL,
     fallback_activity_overview,
     fallback_teacher_comment,
     generate_activity_overview,
@@ -242,12 +244,18 @@ if st.button("由照片生成活動內容概述"):
         model = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash")
         groq_api_key = st.secrets.get("GROQ_API_KEY")
         groq_model = st.secrets.get("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+        hf_api_key = st.secrets.get("HF_API_KEY")
+        hf_model = st.secrets.get("HF_MODEL", DEFAULT_HF_MODEL)
+        hf_vision_model = st.secrets.get("HF_VISION_MODEL", DEFAULT_HF_VISION_MODEL)
         with st.spinner("正在用 AI 生成活動內容概述..."):
             preview = generate_activity_overview_with_preview(
                 api_key=api_key,
                 model=model,
                 groq_api_key=groq_api_key,
                 groq_model=groq_model,
+                hf_api_key=hf_api_key,
+                hf_model=hf_model,
+                hf_vision_model=hf_vision_model,
                 activity_name=activity_name,
                 photo_descriptions=[photo1_desc, photo2_desc, photo3_desc],
                 photos=[flow_photo, group_photo, photo1, photo2, photo3],
@@ -256,7 +264,7 @@ if st.button("由照片生成活動內容概述"):
             st.session_state["activity_overview_text"] = preview["final_text"]
         st.success("已由照片生成活動內容概述。")
     except Exception as exc:
-        st.error("活動內容概述生成失敗，請確認 GEMINI_API_KEY / GROQ_API_KEY 是否正確，或稍後再試。")
+        st.error("活動內容概述生成失敗，請確認 GEMINI_API_KEY / GROQ_API_KEY / HF_API_KEY 是否正確，或稍後再試。")
         st.exception(exc)
 
 activity_overview = st.text_area(
@@ -292,12 +300,16 @@ if st.button("由照片說明生成老師評語"):
         model = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash")
         groq_api_key = st.secrets.get("GROQ_API_KEY")
         groq_model = st.secrets.get("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+        hf_api_key = st.secrets.get("HF_API_KEY")
+        hf_model = st.secrets.get("HF_MODEL", DEFAULT_HF_MODEL)
         with st.spinner("正在用 AI 生成老師評語..."):
             preview = generate_teacher_comment_with_preview(
                 api_key=api_key,
                 model=model,
                 groq_api_key=groq_api_key,
                 groq_model=groq_model,
+                hf_api_key=hf_api_key,
+                hf_model=hf_model,
                 activity_name=activity_name,
                 activity_review=activity_suggestion,
                 photo_descriptions=[photo1_desc, photo2_desc, photo3_desc],
@@ -305,7 +317,7 @@ if st.button("由照片說明生成老師評語"):
             st.session_state["teacher_comment_preview"] = preview
             st.session_state["teacher_comment_text"] = preview["final_text"]
     except Exception as exc:
-        st.error("老師評語生成失敗，請確認 GEMINI_API_KEY / GROQ_API_KEY 是否正確，或稍後再試。")
+        st.error("老師評語生成失敗，請確認 GEMINI_API_KEY / GROQ_API_KEY / HF_API_KEY 是否正確，或稍後再試。")
         st.exception(exc)
 
 teacher_comment = st.text_area(

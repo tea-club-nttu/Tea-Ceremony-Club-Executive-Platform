@@ -12,6 +12,7 @@ from utils.calendar_store import format_event_label, load_events
 from utils.officer_store import load_officers
 from utils.teacher_comment import (
     DEFAULT_GROQ_MODEL,
+    DEFAULT_HF_MODEL,
     fallback_application_progress,
     generate_application_progress_with_preview,
     generate_application_purpose_with_preview,
@@ -214,12 +215,16 @@ if generate_progress:
             model = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash")
             groq_api_key = st.secrets.get("GROQ_API_KEY")
             groq_model = st.secrets.get("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+            hf_api_key = st.secrets.get("HF_API_KEY")
+            hf_model = st.secrets.get("HF_MODEL", DEFAULT_HF_MODEL)
             with st.spinner("正在用 AI 生成活動進行..."):
                 preview = generate_application_progress_with_preview(
                     api_key=api_key,
                     model=model,
                     groq_api_key=groq_api_key,
                     groq_model=groq_model,
+                    hf_api_key=hf_api_key,
+                    hf_model=hf_model,
                     activity_name=activity_name,
                     tea_topic=tea_topic,
                     snack_item=snack_item,
@@ -231,7 +236,7 @@ if generate_progress:
                 st.session_state["application_activity_progress_input"] = preview["final_text"]
             st.rerun()
         except Exception as exc:
-            st.error("活動進行生成失敗，請確認 GEMINI_API_KEY / GROQ_API_KEY 是否正確，或稍後再試。")
+            st.error("活動進行生成失敗，請確認 GEMINI_API_KEY / GROQ_API_KEY / HF_API_KEY 是否正確，或稍後再試。")
             st.exception(exc)
 
 activity_progress = st.text_area(
@@ -267,12 +272,16 @@ if generate_purpose:
             model = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash")
             groq_api_key = st.secrets.get("GROQ_API_KEY")
             groq_model = st.secrets.get("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+            hf_api_key = st.secrets.get("HF_API_KEY")
+            hf_model = st.secrets.get("HF_MODEL", DEFAULT_HF_MODEL)
             with st.spinner("正在用 AI 生成活動宗旨..."):
                 preview = generate_application_purpose_with_preview(
                     api_key=api_key,
                     model=model,
                     groq_api_key=groq_api_key,
                     groq_model=groq_model,
+                    hf_api_key=hf_api_key,
+                    hf_model=hf_model,
                     activity_name=activity_name,
                     activity_progress=activity_progress,
                 )
@@ -280,7 +289,7 @@ if generate_purpose:
                 st.session_state["application_activity_purpose_input"] = preview["final_text"]
             st.rerun()
         except Exception as exc:
-            st.error("活動宗旨生成失敗，請確認 GEMINI_API_KEY / GROQ_API_KEY 是否正確，或稍後再試。")
+            st.error("活動宗旨生成失敗，請確認 GEMINI_API_KEY / GROQ_API_KEY / HF_API_KEY 是否正確，或稍後再試。")
             st.exception(exc)
 
 activity_purpose = st.text_area(

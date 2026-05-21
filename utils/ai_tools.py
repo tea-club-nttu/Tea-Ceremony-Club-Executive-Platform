@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from utils.teacher_comment import DEFAULT_GROQ_MODEL, generate_ai_result, result_source
+from utils.teacher_comment import (
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_HF_MODEL,
+    generate_ai_result,
+    result_source,
+)
 
 
 AI_TOOL_TYPES = [
@@ -132,8 +137,10 @@ def generate_ai_tool_content(
     target: str,
     tone: str,
     length: str,
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
 ) -> dict[str, object]:
-    if not gemini_api_key and not groq_api_key:
+    if not gemini_api_key and not groq_api_key and not hf_api_key:
         return {
             "text": fallback_ai_tool_content(
                 tool_type=tool_type,
@@ -165,6 +172,8 @@ def generate_ai_tool_content(
             gemini_model=gemini_model,
             groq_api_key=groq_api_key,
             groq_model=groq_model,
+            hf_api_key=hf_api_key,
+            hf_model=hf_model,
             system_instruction=system_instruction,
             prompt=prompt,
         )
@@ -241,10 +250,12 @@ def generate_site_usage_guide(
     gemini_model: str,
     groq_api_key: str | None,
     groq_model: str,
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
 ) -> dict[str, object]:
     fallback_text = fallback_site_usage_guide()
 
-    if not gemini_api_key and not groq_api_key:
+    if not gemini_api_key and not groq_api_key and not hf_api_key:
         return {
             "text": fallback_text,
             "status": "未設定 API key，已使用本機說明。",
@@ -272,6 +283,8 @@ def generate_site_usage_guide(
             gemini_model=gemini_model,
             groq_api_key=groq_api_key,
             groq_model=groq_model,
+            hf_api_key=hf_api_key,
+            hf_model=hf_model,
             system_instruction="你是茶道社幹部平台的使用說明編輯，專門寫清楚、可執行的繁體中文操作指引。",
             prompt=prompt,
         )
@@ -300,10 +313,12 @@ def generate_site_help_answer(
     groq_api_key: str | None,
     groq_model: str,
     question: str,
+    hf_api_key: str | None = None,
+    hf_model: str = DEFAULT_HF_MODEL,
 ) -> dict[str, object]:
     fallback_text = fallback_site_help_answer(question)
 
-    if not gemini_api_key and not groq_api_key:
+    if not gemini_api_key and not groq_api_key and not hf_api_key:
         return {
             "text": fallback_text,
             "status": "未設定 API key，已使用本機回答。",
@@ -335,6 +350,8 @@ def generate_site_help_answer(
             gemini_model=gemini_model,
             groq_api_key=groq_api_key,
             groq_model=groq_model,
+            hf_api_key=hf_api_key,
+            hf_model=hf_model,
             system_instruction="你是茶道社幹部平台的操作客服，只回答此平台實際有的功能與頁面。",
             prompt=prompt,
         )
@@ -358,3 +375,7 @@ def generate_site_help_answer(
 
 def default_groq_model() -> str:
     return DEFAULT_GROQ_MODEL
+
+
+def default_hf_model() -> str:
+    return DEFAULT_HF_MODEL

@@ -2,6 +2,7 @@ import streamlit as st
 
 from utils.auth import init_auth_state, logout_button
 from utils.ai_tools import (
+    default_hf_model,
     default_groq_model,
     fallback_site_usage_guide,
     generate_site_help_answer,
@@ -84,6 +85,8 @@ if st.session_state["authenticated"]:
                         gemini_model=secret_value("GEMINI_MODEL", "gemini-2.5-flash"),
                         groq_api_key=secret_value("GROQ_API_KEY"),
                         groq_model=secret_value("GROQ_MODEL", default_groq_model()),
+                        hf_api_key=secret_value("HF_API_KEY"),
+                        hf_model=secret_value("HF_MODEL", default_hf_model()),
                     )
                 st.rerun()
         with guide_col2:
@@ -126,6 +129,8 @@ if st.session_state["authenticated"]:
                     gemini_model=secret_value("GEMINI_MODEL", "gemini-2.5-flash"),
                     groq_api_key=secret_value("GROQ_API_KEY"),
                     groq_model=secret_value("GROQ_MODEL", default_groq_model()),
+                    hf_api_key=secret_value("HF_API_KEY"),
+                    hf_model=secret_value("HF_MODEL", default_hf_model()),
                     question=help_question,
                 )
             st.rerun()

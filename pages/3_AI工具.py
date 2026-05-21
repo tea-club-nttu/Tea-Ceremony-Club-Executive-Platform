@@ -1,6 +1,11 @@
 import streamlit as st
 
-from utils.ai_tools import AI_TOOL_TYPES, default_groq_model, generate_ai_tool_content
+from utils.ai_tools import (
+    AI_TOOL_TYPES,
+    default_hf_model,
+    default_groq_model,
+    generate_ai_tool_content,
+)
 from utils.auth import require_login, logout_button
 from utils.calendar_store import format_event_label, load_events
 from utils.teacher_comment import DEFAULT_GROQ_MODEL
@@ -99,6 +104,8 @@ if submitted:
                 gemini_model=secret_value("GEMINI_MODEL", "gemini-2.5-flash"),
                 groq_api_key=secret_value("GROQ_API_KEY"),
                 groq_model=secret_value("GROQ_MODEL", default_groq_model() or DEFAULT_GROQ_MODEL),
+                hf_api_key=secret_value("HF_API_KEY"),
+                hf_model=secret_value("HF_MODEL", default_hf_model()),
                 tool_type=tool_type,
                 material=material,
                 activity_name=activity_name,
