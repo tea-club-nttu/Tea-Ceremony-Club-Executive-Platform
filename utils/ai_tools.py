@@ -9,8 +9,10 @@ from utils.teacher_comment import (
 )
 
 
+LINE_TOOL_TYPE = "LINE官方帳號活動預告"
+
 AI_TOOL_TYPES = [
-    "LINE官方帳號活動預告",
+    LINE_TOOL_TYPE,
     "活動公告",
     "社群貼文",
     "成果摘要",
@@ -19,7 +21,7 @@ AI_TOOL_TYPES = [
 ]
 
 TOOL_REQUIREMENTS = {
-    "LINE官方帳號活動預告": (
+    LINE_TOOL_TYPE: (
         "請把輸入的小宣、活動資訊或零散文字，改寫成 LINE 官方帳號可直接發送的茶道社活動預告。"
         "格式必須像茶道社 LINE 官方帳號小宣：開頭是總預告，接著放最近一場提醒，"
         "再依日期分段列出活動；若有不用報名、報名提醒、費用、地點、茶品、點心或晚餐，"
@@ -91,6 +93,8 @@ LINE官方帳號活動預告的額外要求：
   7. 結尾用 2 到 3 行邀請大家來喝茶、吃點東西、認識新朋友。
 - 若素材包含多場活動，請依日期分段整理，每場保留活動名稱、亮點、茶品或點心、時間、地點、費用與報名提醒。
 - 若素材只有單場活動，也要寫成 LINE 可直接發送的小宣，不要變成正式公文。
+- 費用與地點必須寫在各自活動段落裡，不能集中放在文末，也不能寫成統一注意事項。
+- 每一場只要素材有地點，就在該場段落寫「📍 地點」；只要素材有費用，就在該場段落寫「💰 費用」。
 - 「不用報名」、「社員免費」、「快點報名」、「最近一場」這類提醒要放明顯。
 - 只要某場活動有「報名費」、「費用」、「收費」、「社員免費」、「元」、「$」等資訊，就必須在該場活動段落加上「❗請於活動前兩天完成報名」或語意相同的提醒。
 - 若活動明確寫「不用報名」，就不要加活動前兩天報名提醒。
@@ -113,16 +117,21 @@ def fallback_ai_tool_content(
     title = activity_name.strip() or "茶道社活動"
     body = material.strip() or "可補上：活動時間、地點、流程、注意事項。"
 
-    if tool_type == "LINE官方帳號活動預告":
+    if tool_type == LINE_TOOL_TYPE:
         return (
             f"🌿 茶道社｜{title} 🍵\n\n"
             "這次準備了不同主題的茶活動\n"
             "有體驗、有美食，也有輕鬆聊天的時光 ✨\n\n"
             "✨ 最近一場｜請留意活動資訊\n"
-            f"📌 活動資訊\n{body}\n\n"
-            "💰 若本場活動有報名費或費用，請於活動前兩天完成報名。\n\n"
+            f"📅 可補上：活動日期\n"
+            f"🍵 可補上：活動名稱\n"
+            f"{body}\n"
+            "⏰ 可補上：活動時間\n"
+            "📍 可補上：活動地點\n"
+            "💰 可補上：活動費用\n"
+            "❗若本場活動有報名費或費用，請於活動前兩天完成報名。\n\n"
             "想喝杯茶、吃點東西、認識新朋友的話，歡迎直接來找我們。\n"
-            "詳細報名、費用與地點請以幹部最新公告為準 🍃"
+            "一起度過放鬆又有溫度的夜晚吧 🍃"
         )
 
     if tool_type == "活動公告":
@@ -161,6 +170,57 @@ def fallback_ai_tool_content(
         f"{body}\n\n"
         "請依照訊息內容協助完成，若有問題請提前告知，方便幹部後續統整。"
     )
+
+
+def is_weak_line_announcement(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+
+    weak_phrases = (
+        "The image",
+        "provided is",
+        "I can",
+        "I cannot",
+        "sorry",
+        "as an AI",
+        "no additional details",
+        "無法讀取",
+        "我無法",
+    )
+    if any(phrase.lower() in stripped.lower() for phrase in weak_phrases):
+        return True
+
+    if "茶道社" not in stripped:
+        return True
+
+    if "📅" not in stripped and "最近一場" not in stripped:
+        return True
+
+    lines = [line.strip() for line in stripped.splitlines() if line.strip()]
+    date_indexes = [
+        index
+        for index, line in enumerate(lines)
+        if line.startswith("📅") or any(token in line for token in ("1/", "2/", "3/", "4/", "5/", "6/", "7/", "8/", "9/"))
+    ]
+    if len(date_indexes) >= 1:
+        for position, start in enumerate(date_indexes):
+            end = date_indexes[position + 1] if position + 1 < len(date_indexes) else len(lines)
+            block = "\n".join(lines[start:end])
+            has_fee_signal = any(token in block for token in ("💰", "費用", "報名費", "元", "社員免費", "$"))
+            has_location_signal = any(token in block for token in ("📍", "地點", "社辦", "書院", "校外", "校內"))
+
+            if "可補上" in block:
+                continue
+
+            full_text_has_fee = any(token in stripped for token in ("💰", "費用", "報名費", "元", "社員免費", "$"))
+            full_text_has_location = any(token in stripped for token in ("📍", "地點", "社辦", "書院", "校外", "校內"))
+            if full_text_has_fee and not has_fee_signal:
+                return True
+            if full_text_has_location and not has_location_signal:
+                return True
+
+    return False
 
 
 def generate_ai_tool_content(
@@ -235,8 +295,25 @@ def generate_ai_tool_content(
             "debug": {},
         }
 
+    generated_text = str(result.get("text", "")).strip()
+    if tool_type == LINE_TOOL_TYPE and is_weak_line_announcement(generated_text):
+        return {
+            "text": fallback_ai_tool_content(
+                tool_type=tool_type,
+                material=material,
+                activity_name=activity_name,
+                target=target,
+                tone=tone,
+                length=length,
+            ),
+            "status": f"{result_source(result)} 產出疑似不完整或格式不符，已改用本機草稿。",
+            "provider": "本機草稿",
+            "model": "",
+            "debug": result.get("debug", {}),
+        }
+
     return {
-        "text": str(result.get("text", "")).strip(),
+        "text": generated_text,
         "status": f"使用 {result_source(result)} 產生。",
         "provider": result.get("provider", "AI"),
         "model": result.get("model", ""),
