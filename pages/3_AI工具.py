@@ -43,7 +43,7 @@ with st.sidebar:
     logout_button()
 
 st.title("AI工具")
-st.caption("協助產生活動文案、公告草稿、會議紀錄與行政訊息。")
+st.caption("協助產生活動文案、LINE 小宣、公告草稿、會議紀錄與行政訊息。")
 
 events = load_events()
 event_options = ["不帶入行事曆"] + [format_event_label(event) for event in events]
@@ -89,7 +89,7 @@ with st.form("ai_tool_form"):
         "輸入素材",
         key="ai_tool_material",
         height=220,
-        placeholder="貼上活動資訊、流程、會議原始紀錄或想傳達的重點...",
+        placeholder="貼上社課小宣、活動資訊、流程、會議原始紀錄或想傳達的重點...",
     )
 
     submitted = st.form_submit_button("產生內容", type="primary")
