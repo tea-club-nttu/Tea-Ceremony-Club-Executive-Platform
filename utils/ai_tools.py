@@ -3,6 +3,7 @@ from __future__ import annotations
 from utils.teacher_comment import (
     DEFAULT_GROQ_MODEL,
     DEFAULT_HF_MODEL,
+    DEFAULT_HF_VISION_MODEL,
     generate_ai_result,
     result_source,
 )
@@ -76,6 +77,7 @@ def build_ai_tool_prompt(
 - 如果資料不足，請以「可補上：」標示需要人工補充的資訊。
 - 不要輸出前言或解釋，不要說「以下是」。
 - 避免空泛套話，例如「豐富多元」、「收穫良多」、「圓滿成功」。
+- 若有上傳圖片，圖片可能是社課小宣、活動海報或截圖；請優先讀取圖片中的日期、活動名稱、地點、費用、報名資訊與餐點/茶品，再結合輸入素材撰寫。
 
 LINE官方帳號活動預告的額外要求：
 - 優先模仿茶道社 LINE 官方帳號小宣風格，開頭可用「🌿 茶道社｜主題 🍵」。
@@ -162,6 +164,8 @@ def generate_ai_tool_content(
     length: str,
     hf_api_key: str | None = None,
     hf_model: str = DEFAULT_HF_MODEL,
+    hf_vision_model: str = DEFAULT_HF_VISION_MODEL,
+    images: list[object] | None = None,
 ) -> dict[str, object]:
     if not gemini_api_key and not groq_api_key and not hf_api_key:
         return {
@@ -197,8 +201,10 @@ def generate_ai_tool_content(
             groq_model=groq_model,
             hf_api_key=hf_api_key,
             hf_model=hf_model,
+            hf_vision_model=hf_vision_model,
             system_instruction=system_instruction,
             prompt=prompt,
+            images=images,
         )
     except RuntimeError as exc:
         return {
@@ -402,3 +408,7 @@ def default_groq_model() -> str:
 
 def default_hf_model() -> str:
     return DEFAULT_HF_MODEL
+
+
+def default_hf_vision_model() -> str:
+    return DEFAULT_HF_VISION_MODEL

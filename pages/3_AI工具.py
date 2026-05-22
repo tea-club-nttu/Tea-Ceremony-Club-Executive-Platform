@@ -3,6 +3,7 @@ import streamlit as st
 from utils.ai_tools import (
     AI_TOOL_TYPES,
     default_hf_model,
+    default_hf_vision_model,
     default_groq_model,
     generate_ai_tool_content,
 )
@@ -91,12 +92,18 @@ with st.form("ai_tool_form"):
         height=220,
         placeholder="貼上社課小宣、活動資訊、流程、會議原始紀錄或想傳達的重點...",
     )
+    images = st.file_uploader(
+        "上傳小宣圖片或活動海報",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True,
+        help="可上傳社課小宣截圖或活動海報；AI 會讀取圖片文字與內容後產生文案。",
+    )
 
     submitted = st.form_submit_button("產生內容", type="primary")
 
 if submitted:
-    if not activity_name.strip() and not material.strip():
-        st.error("請至少輸入活動名稱或素材。")
+    if not activity_name.strip() and not material.strip() and not images:
+        st.error("請至少輸入活動名稱、素材，或上傳小宣圖片。")
     else:
         with st.spinner("正在用 AI 生成內容..."):
             result = generate_ai_tool_content(
@@ -106,12 +113,14 @@ if submitted:
                 groq_model=secret_value("GROQ_MODEL", default_groq_model() or DEFAULT_GROQ_MODEL),
                 hf_api_key=secret_value("HF_API_KEY"),
                 hf_model=secret_value("HF_MODEL", default_hf_model()),
+                hf_vision_model=secret_value("HF_VISION_MODEL", default_hf_vision_model()),
                 tool_type=tool_type,
                 material=material,
                 activity_name=activity_name,
                 target=target,
                 tone=tone,
                 length=length,
+                images=images,
             )
 
         st.session_state["ai_tool_result"] = result
