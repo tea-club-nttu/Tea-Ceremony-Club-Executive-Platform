@@ -17,6 +17,7 @@ from utils.teacher_comment import (
     generate_application_progress_with_preview,
     generate_application_purpose_with_preview,
 )
+from utils.template_store import get_template_source, template_status_text
 
 
 st.set_page_config(
@@ -64,11 +65,11 @@ def model_message(preview: dict[str, object]) -> str:
 
 
 with st.expander("範本設定", expanded=False):
-    st.write(f"目前預設範本：`{DEFAULT_APPLICATION_TEMPLATE_PATH.name}`")
+    st.write(template_status_text("application_form"))
     template_file = st.file_uploader(
         "上傳自訂 Word 範本（可選）",
         type=["docx"],
-        help="未上傳時會使用平台內建的活動申請書範本。",
+        help="此處上傳只會套用本次產生；未上傳時會使用模板管理頁設定的活動申請書模板。",
     )
 
 st.subheader("基本資料")
@@ -316,7 +317,7 @@ if st.button("產生活動申請書", type="primary"):
     else:
         try:
             output = build_application_form(
-                template_file=template_file,
+                template_file=template_file or get_template_source("application_form"),
                 fields=fields,
             )
         except Exception as exc:

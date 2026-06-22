@@ -20,6 +20,7 @@ streamlit run app.py
 - `pages/5_行事曆.py`: 月曆式活動管理，可供成果書帶入活動資料。
 - `pages/6_活動申請書生成.py`: 活動申請書生成，可從行事曆與幹部名單帶入活動資料。
 - `pages/7_常用連結.py`: 幹部常用網站入口，可新增、刪除、排序與直接跳轉；私密連結由 Streamlit Secrets 載入。
+- `pages/8_模板管理.py`: 更換成果書與活動申請書的預設 Word 模板。
 
 ## Current Behavior
 
@@ -31,6 +32,7 @@ streamlit run app.py
 - 行事曆活動欄位使用 `活動負責人`，不使用時間欄位。
 - 從行事曆選取活動時，會自動帶入活動名稱、日期、地點與活動負責人。
 - 活動申請書使用 `assets/活動申請書模板.docx`，只替換 `{{...}}` 標註欄位，不調整未標註內容；活動進行可由活動名稱透過 AI 生成，一行一個流程，並可勾選是否包含破冰活動、點心 DIY 與健康聊齋；活動宗旨可再依活動進行生成。
+- 模板管理頁可上傳成果書與活動申請書自訂模板；生成頁若沒有本次上傳模板，會優先使用模板管理頁保存的模板，否則使用內建 `assets` 模板。
 - AI 工具頁使用 `utils/ai_tools.py`，支援行事曆資料套用、文字用途選擇、語氣與篇幅選擇；AI 失敗時會產生本機草稿。
 - 首頁登入後顯示小型網站使用說明與頁面跳轉連結，也可輸入操作問題讓 Gemini/Groq 回答；AI 失敗時使用本機回答。
 - 常用連結預設包含課外組空間借用頁面，公開資料儲存在 `data/useful_links.json`。
@@ -45,6 +47,8 @@ streamlit run app.py
 - `data/officers.json`: 幹部名單。
 - `data/calendar_events.json`: 行事曆活動。
 - `data/useful_links.json`: 常用連結。
+- `data/templates.json`: 自訂 Word 模板 metadata。
+- `data/templates/*.docx`: 自訂 Word 模板檔案。
 - 若設定 `GITHUB_TOKEN`，資料會優先永久寫入 GitHub repo。
 - 未設定 `GITHUB_TOKEN` 時，改用本機檔案儲存。
 

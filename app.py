@@ -60,6 +60,8 @@ if st.session_state["authenticated"]:
         st.caption("記錄社課、會議與活動時程。")
         st.page_link("pages/7_常用連結.py", label="常用連結", icon="🔗")
         st.caption("整理幹部常用網站並快速跳轉。")
+        st.page_link("pages/8_模板管理.py", label="模板管理", icon="🧩")
+        st.caption("更換成果書與活動申請書模板。")
 
     st.divider()
     st.subheader("平台說明")
@@ -110,6 +112,7 @@ if st.session_state["authenticated"]:
             st.page_link("pages/2_問卷分析.py", label="問卷分析", icon="📊")
         with link_col4:
             st.page_link("pages/7_常用連結.py", label="常用連結", icon="🔗")
+            st.page_link("pages/8_模板管理.py", label="模板管理", icon="🧩")
 
     st.subheader("問 AI 怎麼操作")
     with st.form("site_help_form"):
