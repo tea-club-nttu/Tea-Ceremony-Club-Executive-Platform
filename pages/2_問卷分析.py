@@ -6,6 +6,9 @@ from utils.achievement_report import read_questionnaire, should_exclude_question
 from utils.auth import require_login, logout_button
 
 
+SCORE_VALUES = {"1", "2", "3", "4", "5"}
+
+
 st.set_page_config(
     page_title="問卷分析 | 茶道社幹部平台",
     page_icon="🍵",
@@ -34,6 +37,35 @@ def chart_data(df: pd.DataFrame, column: str, *, include_blank: bool) -> pd.Data
     counts["百分比"] = counts["份數"] / total * 100
     counts["百分比標籤"] = counts["百分比"].map(lambda value: f"{value:.1f}%")
     return counts
+
+
+def is_score_column(df: pd.DataFrame, column: str) -> bool:
+    values = clean_values(df[column], include_blank=False)
+    return len(values) > 0 and values.isin(SCORE_VALUES).all()
+
+
+def combined_score_chart_data(df: pd.DataFrame, columns: list[str]) -> tuple[pd.DataFrame, list[str]]:
+    score_columns = [column for column in columns if is_score_column(df, column)]
+    if not score_columns:
+        return pd.DataFrame(columns=["選項", "份數", "百分比", "百分比標籤"]), []
+
+    combined_values = pd.concat(
+        [clean_values(df[column], include_blank=False) for column in score_columns],
+        ignore_index=True,
+    )
+    counts = combined_values.value_counts(dropna=False).reindex(
+        ["5", "4", "3", "2", "1"],
+        fill_value=0,
+    )
+    data = counts.reset_index()
+    data.columns = ["選項", "份數"]
+    total = data["份數"].sum()
+    if total == 0:
+        return pd.DataFrame(columns=["選項", "份數", "百分比", "百分比標籤"]), score_columns
+
+    data["百分比"] = data["份數"] / total * 100
+    data["百分比標籤"] = data["百分比"].map(lambda value: f"{value:.1f}%")
+    return data, score_columns
 
 
 def pie_chart(data: pd.DataFrame, title: str) -> alt.Chart:
@@ -76,12 +108,13 @@ except Exception as exc:
 
 columns = [str(column) for column in df.columns]
 default_columns = [column for column in columns if not should_exclude_question(column)]
+score_data, score_columns = combined_score_chart_data(df, default_columns)
 
 st.subheader("分析摘要")
 metric_col1, metric_col2, metric_col3 = st.columns(3)
 metric_col1.metric("回覆數", len(df))
 metric_col2.metric("題目欄位", len(columns))
-metric_col3.metric("預設分析題目", len(default_columns))
+metric_col3.metric("評分題數", len(score_columns))
 
 st.subheader("圓餅圖設定")
 settings_col1, settings_col2 = st.columns([3, 1])
@@ -95,6 +128,23 @@ with settings_col1:
 with settings_col2:
     include_blank = st.checkbox("包含未填答", value=False)
 
+st.subheader("所有評分題合併")
+if score_data.empty:
+    st.info("目前沒有偵測到可合併的 1-5 分評分題。")
+else:
+    st.caption(f"已合併 {len(score_columns)} 題評分題，共 {int(score_data['份數'].sum())} 筆評分。")
+    combined_chart_col, combined_table_col = st.columns([2, 1])
+    with combined_chart_col:
+        st.altair_chart(pie_chart(score_data, "所有評分題合併"), use_container_width=True)
+    with combined_table_col:
+        display_score_data = score_data.copy()
+        display_score_data["百分比"] = display_score_data["百分比"].map(lambda value: f"{value:.1f}%")
+        st.dataframe(display_score_data, hide_index=True, use_container_width=True)
+    with st.expander("已合併的評分題", expanded=False):
+        for column in score_columns:
+            st.write(f"- {column}")
+
+st.subheader("各題圓餅圖")
 if not selected_columns:
     st.warning("請至少選擇一個題目產生圓餅圖。")
 else:
