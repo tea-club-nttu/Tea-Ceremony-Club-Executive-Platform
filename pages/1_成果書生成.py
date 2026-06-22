@@ -6,6 +6,8 @@ from utils.achievement_report import (
     DEFAULT_TEMPLATE_PATH,
     LEGACY_ACTIVITY_OVERVIEW_TEXT,
     build_report,
+    read_questionnaire,
+    should_exclude_question,
 )
 from utils.auth import require_login, logout_button
 from utils.calendar_store import format_event_label, load_events
@@ -212,6 +214,37 @@ questionnaire_file = st.file_uploader(
     "上傳問卷 Excel / CSV",
     type=["xlsx", "csv"],
 )
+selected_question_columns = None
+
+if questionnaire_file is not None:
+    try:
+        questionnaire_df = read_questionnaire(questionnaire_file)
+        questionnaire_df = questionnaire_df.dropna(axis=1, how="all")
+        question_columns = [str(column) for column in questionnaire_df.columns]
+        selected_question_columns = []
+
+        st.caption(f"已讀取 {len(questionnaire_df)} 份回覆、{len(question_columns)} 個欄位。")
+        with st.expander("選擇要放入成果書的回饋題目", expanded=True):
+            st.caption("預設會先取消姓名、學校、社課名稱、消息來源等不適合放入成果書的欄位，可自行調整。")
+            for index, column in enumerate(question_columns):
+                default_checked = not should_exclude_question(column)
+                checked = st.checkbox(
+                    column,
+                    value=default_checked,
+                    key=f"questionnaire_column_{index}_{column}",
+                )
+                if checked:
+                    selected_question_columns.append(column)
+
+        if not selected_question_columns:
+            st.warning("目前沒有勾選任何回饋題目，成果書只會顯示有效回覆數。")
+
+        questionnaire_file.seek(0)
+    except Exception as exc:
+        st.error("問卷資料讀取失敗，請確認 Excel / CSV 格式是否正確。")
+        st.exception(exc)
+        selected_question_columns = None
+        questionnaire_file.seek(0)
 
 st.subheader("照片")
 image_col1, image_col2 = st.columns(2)
@@ -399,6 +432,7 @@ if st.button("產生成果書", type="primary"):
             questionnaire_file=questionnaire_file,
             fields=fields,
             images=images,
+            selected_questions=selected_question_columns,
         )
     except Exception as exc:
         st.error("成果書產生失敗，請確認範本、問卷或圖片格式是否正確。")

@@ -48,7 +48,10 @@ def read_questionnaire(uploaded_file) -> pd.DataFrame:
     raise ValueError("CSV 編碼無法辨識，請改存為 UTF-8 或 Excel 檔後再上傳。")
 
 
-def analyze_questionnaire(df: pd.DataFrame) -> str:
+def analyze_questionnaire(
+    df: pd.DataFrame,
+    selected_questions: list[str] | None = None,
+) -> str:
     df = df.dropna(axis=1, how="all")
     total = len(df)
 
@@ -57,9 +60,14 @@ def analyze_questionnaire(df: pd.DataFrame) -> str:
 
     score_questions = []
     text_questions = []
+    selected_set = set(selected_questions) if selected_questions is not None else None
 
     for column in df.columns:
-        if should_exclude_question(column):
+        column_text = str(column)
+        if selected_set is not None and column_text not in selected_set:
+            continue
+
+        if selected_set is None and should_exclude_question(column):
             continue
 
         values = df[column].dropna().astype(str).str.strip()
@@ -71,6 +79,10 @@ def analyze_questionnaire(df: pd.DataFrame) -> str:
             text_questions.append(column)
 
     lines = [f"本次問卷有效回覆數：{total} 份", ""]
+
+    if selected_set is not None and not score_questions and not text_questions:
+        lines.append("未勾選要放入成果書的問卷題目。")
+        return "\n".join(lines)
 
     if score_questions:
         lines.append("量表題統計（1-5 分）：")
@@ -216,12 +228,13 @@ def build_report(
     questionnaire_file,
     fields: dict[str, str],
     images: dict[str, object],
+    selected_questions: list[str] | None = None,
 ) -> tuple[BytesIO, str]:
     if questionnaire_file is None:
         result_text = "未上傳問卷資料。"
     else:
         df = read_questionnaire(questionnaire_file)
-        result_text = analyze_questionnaire(df)
+        result_text = analyze_questionnaire(df, selected_questions=selected_questions)
 
     template_source = template_file if template_file is not None else str(DEFAULT_TEMPLATE_PATH)
     doc = Document(template_source)
