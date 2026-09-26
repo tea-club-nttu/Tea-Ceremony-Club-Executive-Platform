@@ -240,6 +240,8 @@ def build_report(
     doc = Document(template_source)
 
     replacements = {
+        "{{學年度}}": str(fields.get("academic_year", "")),
+        "{{學期}}": str(fields.get("semester", "")),
         "{{填寫日期}}": fields.get("fill_date", ""),
         "{{活動名稱}}": fields.get("activity_name", ""),
         "{{活動地點}}": fields.get("activity_place", ""),

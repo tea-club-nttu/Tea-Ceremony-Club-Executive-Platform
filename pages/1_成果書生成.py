@@ -176,6 +176,9 @@ if st.session_state.get("last_calendar_event_index") != selected_calendar_event_
 col1, col2, col3 = st.columns(3)
 
 with col1:
+    today = datetime.now(ZoneInfo("Asia/Taipei")).date()
+    academic_year = st.number_input("學年度（民國）", min_value=1, value=today.year - 1911 - (today.month < 8), step=1)
+    semester = st.selectbox("學期", ["一", "二"], index=0 if today.month >= 8 or today.month == 1 else 1)
     if "fill_date_picker" not in st.session_state:
         st.session_state["fill_date_picker"] = datetime.now(ZoneInfo("Asia/Taipei")).date()
     fill_date_value = st.date_input("填寫日期", key="fill_date_picker")
@@ -373,6 +376,8 @@ show_ai_preview(
 )
 
 fields = {
+    "academic_year": str(academic_year),
+    "semester": semester,
     
     "fill_date": fill_date,
     "activity_name": activity_name,

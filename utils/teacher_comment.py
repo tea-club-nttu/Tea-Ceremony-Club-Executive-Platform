@@ -502,6 +502,8 @@ def fallback_application_progress(
     include_icebreaker: bool = True,
     include_snack_diy: bool = False,
     include_health_chat: bool = False,
+    include_review_video: bool = False,
+    include_club_song: bool = False,
 ) -> str:
     name = activity_name.strip()
     tea = tea_topic.strip() or "茶"
@@ -513,11 +515,11 @@ def fallback_application_progress(
         current, segment = activity_segment(current, 10, "破冰活動")
         segments.append(segment)
 
-    if any(keyword in name for keyword in ("封箱", "期末")):
-        current, segment = activity_segment(current, 15, "本學期回顧影片欣賞與社歌練唱")
+    if include_review_video:
+        current, segment = activity_segment(current, 10, "回顧影片欣賞")
         segments.append(segment)
-    elif any(keyword in name for keyword in ("開箱", "開春", "期初")):
-        current, segment = activity_segment(current, 15, "期初回顧影片欣賞與社歌練唱")
+    if include_club_song:
+        current, segment = activity_segment(current, 5, "唱社歌")
         segments.append(segment)
 
     if include_health_chat:
@@ -529,8 +531,8 @@ def fallback_application_progress(
         current, segment = activity_segment(current, 20, diy_label)
         segments.append(segment)
 
-    remaining = max((20 * 60 + 50) - current, 20)
-    intro_duration = 15 if remaining >= 30 else 10
+    remaining = (20 * 60 + 50) - current
+    intro_duration = min(15, remaining - 10)
     current, segment = activity_segment(current, intro_duration, f"介紹{tea}")
     segments.append(segment)
 
@@ -954,6 +956,8 @@ def generate_application_progress_with_preview(
     include_icebreaker: bool = True,
     include_snack_diy: bool = False,
     include_health_chat: bool = False,
+    include_review_video: bool = False,
+    include_club_song: bool = False,
     hf_api_key: str | None = None,
     hf_model: str = DEFAULT_HF_MODEL,
 ) -> dict[str, object]:
@@ -965,6 +969,8 @@ def generate_application_progress_with_preview(
             include_icebreaker=include_icebreaker,
             include_snack_diy=include_snack_diy,
             include_health_chat=include_health_chat,
+            include_review_video=include_review_video,
+            include_club_song=include_club_song,
         )
         return ai_preview(final_text=fallback_text, status="未設定 API key，使用本機草稿。")
 
@@ -980,11 +986,13 @@ def generate_application_progress_with_preview(
 是否安排破冰活動：{"是" if include_icebreaker else "否"}
 是否安排點心DIY：{"是" if include_snack_diy else "否"}
 是否安排健康聊齋：{"是" if include_health_chat else "否"}
+是否觀看回顧影片：{"是，必須安排回顧影片" if include_review_video else "否，禁止安排影片或回顧"}
+是否唱社歌：{"是，必須安排唱社歌" if include_club_song else "否，禁止安排唱歌或社歌"}
 
 固定背景：
 - 封箱茶會通常是期末或本學期最後社課。
 - 開箱或開春通常是期初社課。
-- 期初與期末活動通常會安排回顧影片與唱社歌。
+- 回顧影片與社歌完全依上方勾選安排，不因期初、期末而自動加入。
 - 常見活動元素包含介紹茶、喝茶。
 - 健康聊齋是茶道社可安排的主題交流活動。
 - {icebreaker_rule}
@@ -997,7 +1005,7 @@ def generate_application_progress_with_preview(
 - 時間需接在 19:30-19:35 開場之後，並在 20:50 前結束，因為模板後面已保留 20:50-21:00 小組時間。
 - 流程需合理、可執行，不要排太多項目。
 - 必須包含介紹茶、喝茶。
-- 若判斷為期初或期末，需加入回顧影片與唱社歌。
+- 每個活動單獨一行，回顧影片與唱社歌若皆勾選也須分成兩行。
 - 不要捏造不合理的活動項目。
 """.strip()
 
@@ -1021,6 +1029,8 @@ def generate_application_progress_with_preview(
             include_icebreaker=include_icebreaker,
             include_snack_diy=include_snack_diy,
             include_health_chat=include_health_chat,
+            include_review_video=include_review_video,
+            include_club_song=include_club_song,
         )
         return ai_preview(
             final_text=fallback_text,
@@ -1035,7 +1045,16 @@ def generate_application_progress_with_preview(
         required_terms.append("DIY")
     if include_health_chat:
         required_terms.append("健康聊齋")
-    if not generated_text or any(term not in generated_text for term in required_terms):
+    if include_review_video:
+        required_terms.append("影片")
+    if include_club_song:
+        required_terms.append("社歌")
+    forbidden_terms = []
+    if not include_review_video:
+        forbidden_terms.extend(["影片", "回顧"])
+    if not include_club_song:
+        forbidden_terms.extend(["社歌", "唱歌"])
+    if not generated_text or any(term not in generated_text for term in required_terms) or any(term in generated_text for term in forbidden_terms):
         fallback_text = fallback_application_progress(
             activity_name=activity_name,
             tea_topic=tea_topic,
@@ -1043,6 +1062,8 @@ def generate_application_progress_with_preview(
             include_icebreaker=include_icebreaker,
             include_snack_diy=include_snack_diy,
             include_health_chat=include_health_chat,
+            include_review_video=include_review_video,
+            include_club_song=include_club_song,
         )
         return ai_preview(
             final_text=fallback_text,

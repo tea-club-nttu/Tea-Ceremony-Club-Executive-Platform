@@ -33,7 +33,15 @@ def build_application_form(
         "{{活動宗旨}}": str(fields.get("activity_purpose", "")),
         "{{活動進行}}": str(fields.get("activity_progress", "")),
         "{{點心}}": str(fields.get("snack_item", "")),
+        "{{活動流程日期}}": str(fields.get("progress_date", "")),
+        "{{流程日期}}": str(fields.get("progress_date", "")),
     }
+    for role in ("社長", "副社長", "總務", "攝錄", "點心", "文書"):
+        name = str(fields.get("officer_names", {}).get(role, ""))
+        replacements[f"{{{{{role}姓名}}}}"] = name
+        replacements[f"{{{{{role}名字}}}}"] = name
+        if role != "點心":
+            replacements[f"{{{{{role}}}}}"] = name
 
     replace_text(doc, replacements)
 

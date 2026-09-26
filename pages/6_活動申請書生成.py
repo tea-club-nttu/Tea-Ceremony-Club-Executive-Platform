@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -103,6 +104,8 @@ if st.session_state.get("application_last_calendar_event_index") != selected_cal
     if selected_calendar_event is not None:
         st.session_state["application_activity_name_input"] = event_name
         st.session_state["application_activity_date_input"] = roc_date_from_iso(event_date)
+        if event_date:
+            st.session_state["application_progress_date"] = datetime.strptime(event_date, "%Y-%m-%d").date()
         if event_leader:
             st.session_state["application_calendar_event_leader"] = event_leader
             for index, officer in enumerate(officers):
@@ -133,6 +136,7 @@ with col1:
         key="application_activity_date_input",
         help="會寫入申請書的活動日期與活動時間欄位，例如 115/5/18 或 115/5/18 19:00~21:00。",
     )
+    progress_date = st.date_input("活動流程日期", value=datetime.now(ZoneInfo("Asia/Taipei")).date(), key="application_progress_date")
 
 with col2:
     if officers:
@@ -189,9 +193,19 @@ with col3:
         value=False,
         key="application_include_health_chat",
     )
+    include_review_video = st.checkbox("觀看回顧影片", key="application_include_review_video")
+    include_club_song = st.checkbox("唱社歌", key="application_include_club_song")
+
+st.subheader("幹部姓名")
+officer_names = {}
+officer_columns = st.columns(3)
+for index, role in enumerate(("社長", "副社長", "總務", "攝錄", "點心", "文書")):
+    default_names = "、".join(officer.get("姓名", "") for officer in officers if officer.get("職位") == role)
+    with officer_columns[index % 3]:
+        officer_names[role] = st.text_input(f"{role}姓名", value=default_names, key=f"application_officer_{role}")
 
 st.subheader("活動進行")
-st.warning("AI 產生的流程只是草稿，請務必確認時間、順序、破冰、點心 DIY 與健康聊齋是否符合實際活動。")
+st.warning("AI 產生的流程只是草稿，請務必確認時間、順序及勾選的活動項目是否符合實際安排。變更勾選後，請重新生成流程。")
 progress_col1, progress_col2 = st.columns([1, 3])
 with progress_col1:
     generate_progress = st.button("由設定生成活動進行")
@@ -232,6 +246,8 @@ if generate_progress:
                     include_icebreaker=include_icebreaker,
                     include_snack_diy=include_snack_diy,
                     include_health_chat=include_health_chat,
+                    include_review_video=include_review_video,
+                    include_club_song=include_club_song,
                 )
                 st.session_state["application_activity_progress_preview"] = preview
                 st.session_state["application_activity_progress_input"] = preview["final_text"]
@@ -300,6 +316,8 @@ activity_purpose = st.text_area(
 )
 
 fields = {
+    "officer_names": officer_names,
+    "progress_date": f"{progress_date.year - 1911} 年 {progress_date.month} 月 {progress_date.day} 日",
     "activity_name": activity_name,
     "activity_date": activity_date,
     "activity_leader": activity_leader,
