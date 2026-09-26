@@ -198,12 +198,19 @@ with col3:
 
 st.subheader("幹部姓名")
 officer_names = {}
+name_options = list(dict.fromkeys(officer.get("姓名", "").strip() for officer in officers if officer.get("姓名", "").strip()))
+if not name_options:
+    st.info("請先到幹部管理新增幹部，再選擇各組人員。")
 officer_columns = st.columns(3)
 for index, role in enumerate(("社長", "副社長", "總務", "攝錄", "點心", "文書", "美宣")):
-    default_names = "、".join(officer.get("姓名", "") for officer in officers if officer.get("職位") == role)
+    default_names = list(dict.fromkeys(officer.get("姓名", "").strip() for officer in officers if officer.get("職位") == role and officer.get("姓名", "").strip()))
+    selection_key = f"application_officer_selection_{role}"
+    if selection_key in st.session_state:
+        st.session_state[selection_key] = [name for name in st.session_state[selection_key] if name in name_options]
     with officer_columns[index % 3]:
         label = {"總務": "總務組", "攝錄": "攝影組", "點心": "公關組（點心）", "文書": "文書組", "美宣": "美宣組"}.get(role, role)
-        officer_names[role] = st.text_input(f"{label}姓名", value=default_names, key=f"application_officer_{role}")
+        selected_names = st.multiselect(f"{label}姓名", options=name_options, default=default_names, key=selection_key, disabled=not name_options)
+        officer_names[role] = "、".join(selected_names)
 
 st.subheader("活動進行")
 st.warning("AI 產生的流程只是草稿，請務必確認時間、順序及勾選的活動項目是否符合實際安排。變更勾選後，請重新生成流程。")
