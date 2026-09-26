@@ -5,7 +5,7 @@ from pathlib import Path
 
 from docx import Document
 
-from utils.achievement_report import replace_text
+from utils.achievement_report import replace_text, replace_text_in_paragraph
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +23,16 @@ def build_application_form(
         else str(DEFAULT_APPLICATION_TEMPLATE_PATH)
     )
     doc = Document(template_source)
+
+    # The revised template reuses the activity date marker in its schedule.
+    for table in doc.tables:
+        if not any([cell.text.strip() for cell in row.cells] == ["日期", "時間", "流程", "內容"] for row in table.rows):
+            continue
+        for row in table.rows:
+            for paragraph in row.cells[0].paragraphs:
+                replace_text_in_paragraph(paragraph, {
+                    "{{活動日期}}": str(fields.get("progress_date", fields.get("activity_date", ""))),
+                })
 
     replacements = {
         "{{活動名稱}}": str(fields.get("activity_name", "")),
@@ -42,6 +52,10 @@ def build_application_form(
         replacements[f"{{{{{role}名字}}}}"] = name
         if role != "點心":
             replacements[f"{{{{{role}}}}}"] = name
+
+    officer_names = fields.get("officer_names", {})
+    for group, role in {"美宣組": "美宣", "文書組": "文書", "攝影組": "攝錄", "總務組": "總務", "公關組": "點心"}.items():
+        replacements[f"{{{{{group}}}}}"] = str(officer_names.get(role, ""))
 
     replace_text(doc, replacements)
 

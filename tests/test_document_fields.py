@@ -14,6 +14,19 @@ from utils.teacher_comment import generate_application_progress_with_preview
 
 
 class DocumentFieldsTest(unittest.TestCase):
+    def test_revised_application_template(self):
+        names = {role: f"測試{role}" for role in ("社長", "副社長", "總務", "攝錄", "點心", "文書", "美宣")}
+        output = build_application_form(template_file=None, fields={
+            "officer_names": names, "activity_date": "活動日期測試", "progress_date": "流程日期測試",
+        })
+        doc = Document(output)
+        text = "\n".join(c.text for t in doc.tables for r in t.rows for c in r.cells)
+        for name in names.values():
+            self.assertIn(name, text)
+        self.assertNotIn("{{", text)
+        self.assertIn("活動日期測試", text)
+        self.assertEqual(text.count("流程日期測試"), 4)
+
     def test_report_academic_fields(self):
         output, _ = build_report(template_file=None, questionnaire_file=None,
                                  fields={"academic_year": "115", "semester": "一"}, images={})

@@ -199,10 +199,11 @@ with col3:
 st.subheader("幹部姓名")
 officer_names = {}
 officer_columns = st.columns(3)
-for index, role in enumerate(("社長", "副社長", "總務", "攝錄", "點心", "文書")):
+for index, role in enumerate(("社長", "副社長", "總務", "攝錄", "點心", "文書", "美宣")):
     default_names = "、".join(officer.get("姓名", "") for officer in officers if officer.get("職位") == role)
     with officer_columns[index % 3]:
-        officer_names[role] = st.text_input(f"{role}姓名", value=default_names, key=f"application_officer_{role}")
+        label = {"總務": "總務組", "攝錄": "攝影組", "點心": "公關組（點心）", "文書": "文書組", "美宣": "美宣組"}.get(role, role)
+        officer_names[role] = st.text_input(f"{label}姓名", value=default_names, key=f"application_officer_{role}")
 
 st.subheader("活動進行")
 st.warning("AI 產生的流程只是草稿，請務必確認時間、順序及勾選的活動項目是否符合實際安排。變更勾選後，請重新生成流程。")
