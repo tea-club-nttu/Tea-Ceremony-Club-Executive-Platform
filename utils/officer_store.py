@@ -14,7 +14,7 @@ from utils.github_json_store import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
 OFFICERS_PATH = DATA_DIR / "officers.json"
-OFFICER_ROLES = ["社長", "副社長", "總務", "攝錄", "點心", "文書"]
+OFFICER_ROLES = ["社長", "副社長", "總務", "攝錄", "點心", "文書", "美宣"]
 GITHUB_DATA_PATH = "data/officers.json"
 
 
