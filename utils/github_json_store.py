@@ -6,7 +6,7 @@ import os
 from urllib import error, parse, request
 
 
-GITHUB_REPO = "11104170-star/Tea-Ceremony-Club-Executive-Platform"
+GITHUB_REPO = "tea-club-nttu/Tea-Ceremony-Club-Executive-Platform"
 GITHUB_BRANCH = "main"
 
 
@@ -76,7 +76,26 @@ def load_json(path: str) -> object | None:
         return None
 
 
-def save_json(path: str, data: object, message: str) -> bool:
+class StorageError(RuntimeError):
+    pass
+
+
+def storage_failure(exc: Exception, strict: bool) -> bool:
+    if strict:
+        code = getattr(exc, "code", None)
+        reason = {
+            401: "金鑰無效或已過期。",
+            403: "請確認 Contents 寫入權限、組織核准及 API 額度。",
+            404: "找不到專案或金鑰沒有此專案的存取權限。",
+            409: "遠端資料已變更，請重新整理後再試。",
+            422: "GitHub 拒絕此更新，請檢查分支規則或檔案狀態。",
+        }.get(code, "連線失敗或回覆格式異常，請稍後再試。")
+        status = f"（HTTP {code}）" if code else ""
+        raise StorageError(f"尚未儲存至 GitHub{status}：{reason}") from None
+    return False
+
+
+def save_json(path: str, data: object, message: str, *, strict: bool = False) -> bool:
     token = github_token()
     if not token:
         return False
@@ -89,9 +108,9 @@ def save_json(path: str, data: object, message: str) -> bool:
         sha = current_file.get("sha")
     except error.HTTPError as exc:
         if exc.code != 404:
-            return False
-    except (OSError, json.JSONDecodeError):
-        return False
+            return storage_failure(exc, strict)
+    except (OSError, json.JSONDecodeError) as exc:
+        return storage_failure(exc, strict)
 
     content = json.dumps(data, ensure_ascii=False, indent=2)
     encoded_content = base64.b64encode(content.encode("utf-8")).decode("ascii")
@@ -106,14 +125,14 @@ def save_json(path: str, data: object, message: str) -> bool:
 
     try:
         github_request("PUT", github_contents_url(path), token, payload)
-    except (OSError, error.HTTPError, json.JSONDecodeError):
-        return False
+    except (OSError, error.HTTPError, json.JSONDecodeError) as exc:
+        return storage_failure(exc, strict)
 
     return True
 
 
 def storage_label() -> str:
     if github_token():
-        return "GitHub 永久儲存"
+        return "GitHub 儲存（已設定金鑰；以實際寫入結果為準）"
 
     return "本機檔案儲存"

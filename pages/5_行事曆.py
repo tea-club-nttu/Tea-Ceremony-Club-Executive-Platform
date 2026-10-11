@@ -2,6 +2,7 @@ import calendar
 from datetime import date
 
 import streamlit as st
+from utils.storage_ui import storage_action
 
 from utils.auth import require_login, logout_button
 from utils.calendar_store import (
@@ -79,7 +80,7 @@ for week in calendar_weeks:
                 st.caption(" ")
 
 st.subheader("新增行程")
-with st.form("calendar_event_form", clear_on_submit=True):
+with st.form("calendar_event_form", clear_on_submit=False):
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -106,13 +107,14 @@ if submitted:
     if not title.strip():
         st.error("請輸入活動名稱。")
     else:
-        add_event(
-            title=title,
-            date=event_date.strftime("%Y-%m-%d"),
-            leader=event_leader,
-            location=location,
-            note=note,
-        )
+        with storage_action():
+            add_event(
+                title=title,
+                date=event_date.strftime("%Y-%m-%d"),
+                leader=event_leader,
+                location=location,
+                note=note,
+            )
         st.success("已新增行程。")
         st.rerun()
 
@@ -129,7 +131,8 @@ if events:
     )
 
     if st.button("刪除行程"):
-        delete_event(selected_index)
+        with storage_action():
+            delete_event(selected_index)
         st.success("已刪除行程。")
         st.rerun()
 else:

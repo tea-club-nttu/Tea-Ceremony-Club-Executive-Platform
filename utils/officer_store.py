@@ -55,7 +55,7 @@ def load_officers() -> list[dict[str, str]]:
 
 
 def save_officers(officers: list[dict[str, str]]) -> None:
-    if github_token() and save_json(GITHUB_DATA_PATH, officers, "Update officer list"):
+    if github_token() and save_json(GITHUB_DATA_PATH, officers, "Update officer list", strict=True):
         return
 
     DATA_DIR.mkdir(exist_ok=True)

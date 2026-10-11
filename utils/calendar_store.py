@@ -61,7 +61,7 @@ def load_events() -> list[dict[str, str]]:
 def save_events(events: list[dict[str, str]]) -> None:
     events = normalize_events(events)
 
-    if github_token() and save_json(GITHUB_DATA_PATH, events, "Update calendar events"):
+    if github_token() and save_json(GITHUB_DATA_PATH, events, "Update calendar events", strict=True):
         return
 
     DATA_DIR.mkdir(exist_ok=True)

@@ -1,4 +1,5 @@
 import streamlit as st
+from utils.storage_ui import storage_action
 
 from utils.auth import require_login, logout_button
 from utils.officer_store import (
@@ -30,7 +31,7 @@ st.caption("維護幹部基本資料與職位分工，成果書的活動負責�
 st.caption(f"目前儲存方式：{storage_label()}")
 
 st.subheader("新增幹部")
-with st.form("officer_form", clear_on_submit=True):
+with st.form("officer_form", clear_on_submit=False):
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -46,7 +47,8 @@ if submitted:
     if not name.strip():
         st.error("請輸入姓名。")
     else:
-        add_officer(name=name, student_id=student_id, role=role)
+        with storage_action():
+            add_officer(name=name, student_id=student_id, role=role)
         st.success("已新增幹部。")
         st.rerun()
 
@@ -66,19 +68,23 @@ if officers:
     top_col, move_col1, move_col2, delete_col = st.columns(4)
     with top_col:
         if st.button("移到最上面", disabled=selected_index == 0):
-            move_officer_to_top(selected_index)
+            with storage_action():
+                move_officer_to_top(selected_index)
             st.rerun()
     with move_col1:
         if st.button("上移", disabled=selected_index == 0):
-            move_officer(selected_index, -1)
+            with storage_action():
+                move_officer(selected_index, -1)
             st.rerun()
     with move_col2:
         if st.button("下移", disabled=selected_index == len(officers) - 1):
-            move_officer(selected_index, 1)
+            with storage_action():
+                move_officer(selected_index, 1)
             st.rerun()
     with delete_col:
         if st.button("刪除幹部"):
-            delete_officer(selected_index)
+            with storage_action():
+                delete_officer(selected_index)
             st.success("已刪除幹部。")
             st.rerun()
 else:
