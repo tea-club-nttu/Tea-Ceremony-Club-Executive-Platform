@@ -4,5 +4,11 @@
     "updated_at": "2026-10-12 02:15:37",
     "size": 2172616,
     "path": "data/templates/application_form.docx"
+  },
+  "achievement_report": {
+    "file_name": "成果書模板.docx",
+    "updated_at": "2026-10-14 00:04:24",
+    "size": 2872374,
+    "path": "data/templates/achievement_report.docx"
   }
 }
